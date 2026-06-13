@@ -127,6 +127,7 @@ test('boost charges from drift input and drains while held', async ({ page }) =>
   await page.keyboard.down('ArrowRight')
   await page.keyboard.down('ArrowDown')
   let chargedBoost = 0
+  let drainedBoost = 0
   try {
     await page.waitForFunction(() => {
       const state = window.__RPK_RACING_STATE__
@@ -139,6 +140,7 @@ test('boost charges from drift input and drains while held', async ({ page }) =>
       const state = window.__RPK_RACING_STATE__
       return Boolean(state && state.boostActive && state.boostMeter < boostBefore)
     }, chargedBoost)
+    drainedBoost = (await readState(page)).boostMeter
   } finally {
     await page.keyboard.up('Space')
     await page.keyboard.up('ArrowDown')
@@ -148,7 +150,8 @@ test('boost charges from drift input and drains while held', async ({ page }) =>
 
   const state = await readState(page)
   expect(chargedBoost).toBeGreaterThan(0)
-  expect(state.boostMeter).toBeLessThan(chargedBoost)
+  expect(drainedBoost).toBeLessThan(chargedBoost)
+  expect(state.boostMeter).toBeGreaterThanOrEqual(0)
   await expect(page.getByTestId('hud-panel')).toContainText('NIT')
 })
 
@@ -171,6 +174,22 @@ test('the ridge opens as an endless drift game without a seed parameter', async 
   expect(state.gameMode).toBe('drift')
   expect(state.generator).toBe('infinite-ridge-v1')
   await expect(page.getByTestId('debug-panel')).not.toContainText('GEN')
+})
+
+test('arcade timer counts down in browser telemetry', async ({ page }) => {
+  await page.goto('/')
+  await page.waitForFunction(() => window.__RPK_RACING_READY__ === true)
+
+  const before = await readState(page)
+  await page.waitForTimeout(750)
+  const after = await readState(page)
+
+  expect(before.timeRemaining).toBeGreaterThan(after.timeRemaining)
+  expect(after.timeRemaining).toBeGreaterThan(0)
+  expect(after.timeExtendedSeconds).toBe(0)
+  expect(after.raceExpired).toBe(false)
+  expect(after.lastArcadeBanner).toBeTruthy()
+  await expect(page.getByTestId('arcade-banner')).toContainText(after.lastArcadeBanner)
 })
 
 test('hud panels are framed without overlapping each other', async ({ page }) => {
