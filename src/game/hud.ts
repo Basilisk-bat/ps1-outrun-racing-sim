@@ -65,7 +65,11 @@ export function createHud(host: HTMLElement): Hud {
       set(values, 'lateral', snapshot.car.lateral.toFixed(1))
       set(values, 'lap', `${snapshot.telemetry.currentLap + 1}`)
       if (titleStrip) {
-        titleStrip.textContent = `${snapshot.level.title} / ${snapshot.currentSection.title}`
+        titleStrip.textContent = [
+          snapshot.level.title,
+          snapshot.level.difficulty.title.toUpperCase(),
+          snapshot.currentSection.title,
+        ].join(' / ')
       }
     },
   }

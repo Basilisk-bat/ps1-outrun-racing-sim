@@ -33,9 +33,21 @@ export interface RouteSection {
   propStep: number
 }
 
+export type RouteDifficultyId = 'touring' | 'arcade' | 'rival'
+
+export interface RouteDifficultyProfile {
+  id: RouteDifficultyId
+  title: string
+  targetMultiplier: number
+  silverDeltaSeconds: number
+  bronzeDeltaSeconds: number
+  latePenaltyPerSecond: number
+}
+
 export interface LevelManifest {
   id: string
   title: string
+  difficulty: RouteDifficultyProfile
   segmentLength: number
   totalLength: number
   roadWidth: number
@@ -56,6 +68,37 @@ export interface TrackSample {
 
 const DEFAULT_SEGMENT_LENGTH = 64
 const DEFAULT_ROAD_WIDTH = 16
+const DEFAULT_ROUTE_DIFFICULTY: RouteDifficultyId = 'arcade'
+
+export const ROUTE_DIFFICULTY_PROFILES: Record<
+  RouteDifficultyId,
+  RouteDifficultyProfile
+> = {
+  touring: {
+    id: 'touring',
+    title: 'Touring',
+    targetMultiplier: 1.08,
+    silverDeltaSeconds: 3.5,
+    bronzeDeltaSeconds: 6.8,
+    latePenaltyPerSecond: 24,
+  },
+  arcade: {
+    id: 'arcade',
+    title: 'Arcade',
+    targetMultiplier: 1,
+    silverDeltaSeconds: 2.5,
+    bronzeDeltaSeconds: 5,
+    latePenaltyPerSecond: 32,
+  },
+  rival: {
+    id: 'rival',
+    title: 'Rival',
+    targetMultiplier: 0.93,
+    silverDeltaSeconds: 1.6,
+    bronzeDeltaSeconds: 3.6,
+    latePenaltyPerSecond: 44,
+  },
+}
 
 interface SectionSpec {
   id: string
@@ -116,8 +159,11 @@ const SECTION_SPECS: SectionSpec[] = [
   },
 ]
 
-export function createNeonRidgeLevel(): LevelManifest {
-  const sections = createRouteSections()
+export function createNeonRidgeLevel(
+  difficultyId: RouteDifficultyId = DEFAULT_ROUTE_DIFFICULTY,
+): LevelManifest {
+  const difficulty = ROUTE_DIFFICULTY_PROFILES[difficultyId]
+  const sections = createRouteSections(difficulty)
   const curvePattern = [
     0, 0.18, 0.34, 0.18, 0, -0.22, -0.4, -0.24, 0, 0.08, 0.32, 0.5, 0.24, -0.16,
     -0.34, 0,
@@ -136,6 +182,7 @@ export function createNeonRidgeLevel(): LevelManifest {
   return {
     id: 'neon-ridge-engine-m1',
     title: 'Neon Ridge Run',
+    difficulty,
     segmentLength: DEFAULT_SEGMENT_LENGTH,
     totalLength,
     roadWidth: DEFAULT_ROAD_WIDTH,
@@ -214,14 +261,14 @@ export function wrapDistance(distance: number, totalLength: number): number {
   return ((distance % totalLength) + totalLength) % totalLength
 }
 
-function createRouteSections(): RouteSection[] {
+function createRouteSections(difficulty: RouteDifficultyProfile): RouteSection[] {
   return SECTION_SPECS.map((section) => ({
     id: section.id,
     title: section.title,
     start: section.startSegment * DEFAULT_SEGMENT_LENGTH,
     end: (section.endSegment + 1) * DEFAULT_SEGMENT_LENGTH,
     checkpoint: (section.endSegment + 1) * DEFAULT_SEGMENT_LENGTH,
-    targetSeconds: section.targetSeconds,
+    targetSeconds: roundSeconds(section.targetSeconds * difficulty.targetMultiplier),
     signatureProp: section.signatureProp,
     primaryColor: section.primaryColor,
     accentColor: section.accentColor,
@@ -279,4 +326,8 @@ function smoothStep(value: number): number {
 
 function lerp(start: number, end: number, amount: number): number {
   return start + (end - start) * amount
+}
+
+function roundSeconds(value: number): number {
+  return Math.round(value * 10) / 10
 }

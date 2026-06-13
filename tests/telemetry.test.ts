@@ -138,12 +138,37 @@ describe('telemetry', () => {
   })
 
   it('grades and scores checkpoint penalties deterministically', () => {
+    const arcade = createNeonRidgeLevel('arcade')
+    const rival = createNeonRidgeLevel('rival')
+
     expect(gradeCheckpoint(-0.1)).toBe('gold')
     expect(gradeCheckpoint(1.5)).toBe('silver')
     expect(gradeCheckpoint(4.8)).toBe('bronze')
     expect(gradeCheckpoint(5.1)).toBe('miss')
+    expect(gradeCheckpoint(2.2, arcade.difficulty)).toBe('silver')
+    expect(gradeCheckpoint(2.2, rival.difficulty)).toBe('bronze')
+    expect(scoreCheckpoint(2.2, 0, 0, rival.difficulty)).toBeLessThan(
+      scoreCheckpoint(2.2, 0, 0, arcade.difficulty),
+    )
     expect(scoreCheckpoint(1.2, 2, 3)).toBeLessThan(scoreCheckpoint(1.2, 0, 0))
     expect(scoreCheckpoint(120, 10, 30)).toBe(100)
+  })
+
+  it('uses level difficulty when grading checkpoint splits', () => {
+    const level = createNeonRidgeLevel('rival')
+    const car = createInitialCarState()
+    const telemetry = createTelemetryState()
+    const firstSection = level.sections[0]
+    const dt = 1 / 60
+
+    telemetry.elapsed = firstSection.targetSeconds + 2.2 - dt
+    car.speed = 96
+    car.distance = firstSection.checkpoint + 1
+    updateTelemetry(telemetry, level, car, dt, false)
+
+    expect(telemetry.lastCheckpoint?.targetSeconds).toBeCloseTo(firstSection.targetSeconds)
+    expect(telemetry.lastCheckpoint?.deltaSeconds).toBeCloseTo(2.2)
+    expect(telemetry.lastCheckpoint?.grade).toBe('bronze')
   })
 
   it('keeps the event list bounded', () => {

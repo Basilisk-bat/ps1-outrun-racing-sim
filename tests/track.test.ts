@@ -3,6 +3,7 @@ import {
   calculateCenterOffset,
   checkpointTargetSeconds,
   createNeonRidgeLevel,
+  ROUTE_DIFFICULTY_PROFILES,
   currentRouteSection,
   nextCheckpoint,
   sampleTrack,
@@ -14,12 +15,36 @@ describe('track manifest', () => {
     const level = createNeonRidgeLevel()
 
     expect(level.id).toBe('neon-ridge-engine-m1')
+    expect(level.difficulty).toEqual(ROUTE_DIFFICULTY_PROFILES.arcade)
     expect(level.segments.length).toBeGreaterThan(8)
     expect(level.totalLength).toBe(level.segmentLength * level.segments.length)
     expect(level.checkpoints).toEqual([...level.checkpoints].sort((a, b) => a - b))
     expect(level.checkpoints).toEqual(level.sections.map((section) => section.checkpoint))
     expect(level.targetTimeSeconds).toBe(level.sections.at(-1)?.targetSeconds)
     expect(level.props.length).toBeGreaterThan(8)
+  })
+
+  it('scales checkpoint targets for alternate route difficulty profiles', () => {
+    const touring = createNeonRidgeLevel('touring')
+    const arcade = createNeonRidgeLevel('arcade')
+    const rival = createNeonRidgeLevel('rival')
+
+    expect(touring.difficulty.title).toBe('Touring')
+    expect(rival.difficulty.title).toBe('Rival')
+    expect(touring.sections[0].targetSeconds).toBeGreaterThan(
+      arcade.sections[0].targetSeconds,
+    )
+    expect(rival.sections[0].targetSeconds).toBeLessThan(
+      arcade.sections[0].targetSeconds,
+    )
+    expect(touring.targetTimeSeconds).toBeGreaterThan(arcade.targetTimeSeconds)
+    expect(rival.targetTimeSeconds).toBeLessThan(arcade.targetTimeSeconds)
+    expect(rival.difficulty.silverDeltaSeconds).toBeLessThan(
+      arcade.difficulty.silverDeltaSeconds,
+    )
+    expect(touring.difficulty.bronzeDeltaSeconds).toBeGreaterThan(
+      arcade.difficulty.bronzeDeltaSeconds,
+    )
   })
 
   it('defines contiguous named route sections with pacing targets', () => {

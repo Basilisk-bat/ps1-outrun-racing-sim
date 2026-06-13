@@ -71,6 +71,8 @@ test('score economy state is exposed in browser telemetry', async ({ page }) => 
   }
 
   const state = await readState(page)
+  expect(state.difficultyId).toBe('arcade')
+  expect(state.difficultyTitle).toBe('Arcade')
   expect(state.styleRank).toBe('clean')
   expect(state.styleScore).toBeGreaterThan(0)
   expect(state.styleCombo).toBeGreaterThan(0)
@@ -85,6 +87,7 @@ test('score economy state is exposed in browser telemetry', async ({ page }) => 
   await expect(page.getByTestId('hud-panel')).toContainText('STY')
   await expect(page.getByTestId('debug-panel')).toContainText('DRF')
   await expect(page.getByTestId('debug-panel')).toContainText('CHN')
+  await expect(page.getByTestId('title-strip')).toContainText('ARCADE')
 })
 
 test('hud panels are framed without overlapping each other', async ({ page }) => {

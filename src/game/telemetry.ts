@@ -1,5 +1,6 @@
 import type { CarState } from './car.ts'
-import type { LevelManifest } from './track.ts'
+import { ROUTE_DIFFICULTY_PROFILES } from './track.ts'
+import type { LevelManifest, RouteDifficultyProfile } from './track.ts'
 
 export type TelemetryEventType =
   | 'checkpoint'
@@ -69,6 +70,7 @@ const SCORE_BY_GRADE: Record<CheckpointGrade, number> = {
   bronze: 520,
   miss: 250,
 }
+const DEFAULT_DIFFICULTY_PROFILE = ROUTE_DIFFICULTY_PROFILES.arcade
 
 export function createTelemetryState(): TelemetryState {
   return {
@@ -197,14 +199,17 @@ export function resetTelemetry(telemetry: TelemetryState, car: CarState): void {
   pushTelemetryEvent(telemetry, car, 'reset')
 }
 
-export function gradeCheckpoint(deltaSeconds: number): CheckpointGrade {
+export function gradeCheckpoint(
+  deltaSeconds: number,
+  difficulty: RouteDifficultyProfile = DEFAULT_DIFFICULTY_PROFILE,
+): CheckpointGrade {
   if (deltaSeconds <= 0) {
     return 'gold'
   }
-  if (deltaSeconds <= 2.5) {
+  if (deltaSeconds <= difficulty.silverDeltaSeconds) {
     return 'silver'
   }
-  if (deltaSeconds <= 5) {
+  if (deltaSeconds <= difficulty.bronzeDeltaSeconds) {
     return 'bronze'
   }
   return 'miss'
@@ -214,9 +219,10 @@ export function scoreCheckpoint(
   deltaSeconds: number,
   collisionPenalty: number,
   offroadPenaltySeconds: number,
+  difficulty: RouteDifficultyProfile = DEFAULT_DIFFICULTY_PROFILE,
 ): number {
-  const grade = gradeCheckpoint(deltaSeconds)
-  const latePenalty = Math.max(0, Math.round(deltaSeconds * 32))
+  const grade = gradeCheckpoint(deltaSeconds, difficulty)
+  const latePenalty = Math.max(0, Math.round(deltaSeconds * difficulty.latePenaltyPerSecond))
   const controlPenalty = collisionPenalty * 75 + Math.round(offroadPenaltySeconds * 14)
   return Math.max(100, SCORE_BY_GRADE[grade] - latePenalty - controlPenalty)
 }
@@ -234,7 +240,13 @@ function createCheckpointSplit(
   const deltaSeconds = telemetry.elapsed - targetSeconds
   const collisionPenalty = car.collisionCount - telemetry.collisionCountAtLastCheckpoint
   const offroadPenaltySeconds = telemetry.offroadTime - telemetry.offroadTimeAtLastCheckpoint
-  const score = scoreCheckpoint(deltaSeconds, collisionPenalty, offroadPenaltySeconds)
+  const grade = gradeCheckpoint(deltaSeconds, level.difficulty)
+  const score = scoreCheckpoint(
+    deltaSeconds,
+    collisionPenalty,
+    offroadPenaltySeconds,
+    level.difficulty,
+  )
 
   return {
     checkpointIndex,
@@ -245,7 +257,7 @@ function createCheckpointSplit(
     targetSeconds,
     actualSeconds: telemetry.elapsed,
     deltaSeconds,
-    grade: gradeCheckpoint(deltaSeconds),
+    grade,
     score,
     cumulativeScore: telemetry.checkpointScore + score,
     collisionPenalty,

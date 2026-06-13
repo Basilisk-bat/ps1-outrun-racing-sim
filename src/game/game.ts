@@ -23,6 +23,8 @@ declare global {
       styleRank: string
       checkpointGrade: string | null
       checkpointDelta: number | null
+      difficultyId: string
+      difficultyTitle: string
       calibration: CalibrationSummary
     }
   }
@@ -63,6 +65,8 @@ export function bootRacingGame(host: HTMLElement): void {
       styleRank: state.telemetry.styleRank,
       checkpointGrade: state.telemetry.lastCheckpoint?.grade ?? null,
       checkpointDelta: state.telemetry.lastCheckpoint?.deltaSeconds ?? null,
+      difficultyId: state.level.difficulty.id,
+      difficultyTitle: state.level.difficulty.title,
       calibration,
     }
     shell.dataset.ready = 'true'
