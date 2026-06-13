@@ -1,0 +1,62 @@
+import type { RacingSnapshot } from './sim.ts'
+
+export interface Hud {
+  root: HTMLElement
+  update: (snapshot: RacingSnapshot) => void
+}
+
+export function createHud(host: HTMLElement): Hud {
+  const root = document.createElement('div')
+  root.innerHTML = `
+    <section class="hud-panel" data-testid="hud-panel" aria-label="Race telemetry">
+      <div class="hud-title">NEON RIDGE</div>
+      ${row('SPD', 'speed')}
+      ${row('DST', 'distance')}
+      ${row('CP', 'checkpoint')}
+      ${row('HIT', 'collisions')}
+    </section>
+    <section class="debug-panel" data-testid="debug-panel" aria-label="Engine debug">
+      ${row('TOP', 'topSpeed')}
+      ${row('OFF', 'offroad')}
+      ${row('LAT', 'lateral')}
+      ${row('LAP', 'lap')}
+    </section>
+    <div class="title-strip" data-testid="title-strip">ENGINE MILESTONE 01</div>
+  `
+  host.append(root)
+
+  const values = new Map<string, HTMLElement>()
+  root.querySelectorAll<HTMLElement>('[data-hud-value]').forEach((element) => {
+    values.set(element.dataset.hudValue ?? '', element)
+  })
+
+  return {
+    root,
+    update: (snapshot) => {
+      set(values, 'speed', `${Math.round(snapshot.car.speed).toString().padStart(3, '0')} KMH`)
+      set(values, 'distance', `${Math.floor(snapshot.car.distance)} M`)
+      set(values, 'checkpoint', `${Math.floor(snapshot.nextCheckpoint)} M`)
+      set(values, 'collisions', `${snapshot.car.collisionCount}`)
+      set(values, 'topSpeed', `${Math.round(snapshot.telemetry.topSpeed)} KMH`)
+      set(values, 'offroad', `${snapshot.telemetry.offroadTime.toFixed(1)} S`)
+      set(values, 'lateral', snapshot.car.lateral.toFixed(1))
+      set(values, 'lap', `${snapshot.telemetry.currentLap + 1}`)
+    },
+  }
+}
+
+function row(label: string, key: string): string {
+  return `
+    <div class="hud-row">
+      <span class="hud-label">${label}</span>
+      <span class="hud-value" data-hud-value="${key}">0</span>
+    </div>
+  `
+}
+
+function set(values: Map<string, HTMLElement>, key: string, value: string): void {
+  const element = values.get(key)
+  if (element) {
+    element.textContent = value
+  }
+}
