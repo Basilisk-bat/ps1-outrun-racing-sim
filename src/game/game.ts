@@ -1,7 +1,9 @@
 import { createHud } from './hud.ts'
 import { createInputController } from './input.ts'
 import { createSceneRenderer } from './scene.ts'
+import { runCalibrationTrace } from './calibration.ts'
 import { RacingSim } from './sim.ts'
+import type { CalibrationSummary } from './calibration.ts'
 import type { RacingSnapshot } from './sim.ts'
 
 declare global {
@@ -21,6 +23,7 @@ declare global {
       styleRank: string
       checkpointGrade: string | null
       checkpointDelta: number | null
+      calibration: CalibrationSummary
     }
   }
 }
@@ -39,6 +42,7 @@ export function bootRacingGame(host: HTMLElement): void {
   const input = createInputController(window)
   const renderer = createSceneRenderer(shell, sim.level)
   const hud = createHud(shell)
+  const calibration = runCalibrationTrace().summary
   let accumulator = 0
   let lastTime = performance.now()
   let animationFrame = 0
@@ -59,6 +63,7 @@ export function bootRacingGame(host: HTMLElement): void {
       styleRank: state.telemetry.styleRank,
       checkpointGrade: state.telemetry.lastCheckpoint?.grade ?? null,
       checkpointDelta: state.telemetry.lastCheckpoint?.deltaSeconds ?? null,
+      calibration,
     }
     shell.dataset.ready = 'true'
     shell.dataset.speed = state.car.speed.toFixed(2)
