@@ -1,5 +1,5 @@
 import { createHud } from './hud.ts'
-import { resolveRouteDifficulty } from './difficulty.ts'
+import { resolveRouteDifficulty, resolveTrackSeed } from './difficulty.ts'
 import { createInputController } from './input.ts'
 import { createSceneRenderer } from './scene.ts'
 import { runCalibrationTrace } from './calibration.ts'
@@ -26,6 +26,8 @@ declare global {
       checkpointDelta: number | null
       difficultyId: string
       difficultyTitle: string
+      generator: string
+      trackSeed: number
       calibration: CalibrationSummary
     }
   }
@@ -42,11 +44,12 @@ export function bootRacingGame(host: HTMLElement): void {
   host.append(shell)
 
   const difficultyId = resolveRouteDifficulty(window.location.search)
-  const sim = new RacingSim(difficultyId)
+  const trackSeed = resolveTrackSeed(window.location.search)
+  const sim = new RacingSim(difficultyId, { seed: trackSeed })
   const input = createInputController(window)
   const renderer = createSceneRenderer(shell, sim.level)
   const hud = createHud(shell)
-  const calibration = runCalibrationTrace({ difficultyId }).summary
+  const calibration = runCalibrationTrace({ difficultyId, seed: trackSeed }).summary
   let accumulator = 0
   let lastTime = performance.now()
   let animationFrame = 0
@@ -69,6 +72,8 @@ export function bootRacingGame(host: HTMLElement): void {
       checkpointDelta: state.telemetry.lastCheckpoint?.deltaSeconds ?? null,
       difficultyId: state.level.difficulty.id,
       difficultyTitle: state.level.difficulty.title,
+      generator: state.level.generator,
+      trackSeed: state.level.proceduralSeed,
       calibration,
     }
     shell.dataset.ready = 'true'

@@ -85,6 +85,7 @@ test('score economy state is exposed in browser telemetry', async ({ page }) => 
   expect(state.calibration.averageDeltaSeconds).toBeLessThan(-0.5)
 
   await expect(page.getByTestId('hud-panel')).toContainText('STY')
+  await expect(page.getByTestId('debug-panel')).toContainText('GEN')
   await expect(page.getByTestId('debug-panel')).toContainText('DRF')
   await expect(page.getByTestId('debug-panel')).toContainText('CHN')
   await expect(page.getByTestId('title-strip')).toContainText('ARCADE')
@@ -100,6 +101,15 @@ test('difficulty query parameter selects the playable route profile', async ({ p
   expect(state.calibration.completedLaps).toBe(1)
 
   await expect(page.getByTestId('title-strip')).toContainText('RIVAL')
+})
+
+test('seed query parameter selects a procedural track variant', async ({ page }) => {
+  await page.goto('/?seed=90210')
+  await page.waitForFunction(() => window.__RPK_RACING_READY__ === true)
+
+  const state = await readState(page)
+  expect(state.generator).toBe('procedural-v1')
+  expect(state.trackSeed).toBe(90210)
 })
 
 test('hud panels are framed without overlapping each other', async ({ page }) => {

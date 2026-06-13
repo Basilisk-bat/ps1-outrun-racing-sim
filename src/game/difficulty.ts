@@ -13,3 +13,17 @@ export function resolveRouteDifficulty(search: string): RouteDifficultyId {
 
   return DEFAULT_ROUTE_DIFFICULTY
 }
+
+export function resolveTrackSeed(search: string): number | undefined {
+  const value = new URLSearchParams(search).get('seed')?.trim()
+  if (!value) {
+    return undefined
+  }
+
+  if (!/^-?\d+$/.test(value)) {
+    return undefined
+  }
+
+  const seed = Number.parseInt(value, 10)
+  return Number.isFinite(seed) ? seed : undefined
+}

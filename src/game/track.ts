@@ -48,6 +48,8 @@ export interface LevelManifest {
   id: string
   title: string
   difficulty: RouteDifficultyProfile
+  generator: 'procedural-v1'
+  proceduralSeed: number
   segmentLength: number
   totalLength: number
   roadWidth: number
@@ -66,9 +68,20 @@ export interface TrackSample {
   roadWidth: number
 }
 
+export interface ProceduralTrackOptions {
+  difficultyId?: RouteDifficultyId
+  seed?: number
+  sectionCount?: number
+}
+
 const DEFAULT_SEGMENT_LENGTH = 64
 const DEFAULT_ROAD_WIDTH = 16
 export const DEFAULT_ROUTE_DIFFICULTY: RouteDifficultyId = 'arcade'
+export const DEFAULT_TRACK_SEED = 0x19_86_09
+const DEFAULT_SECTION_COUNT = 4
+const SEGMENTS_PER_SECTION = 4
+const MIN_SECTION_COUNT = 2
+const MAX_SECTION_COUNT = 8
 
 export const ROUTE_DIFFICULTY_PROFILES: Record<
   RouteDifficultyId,
@@ -100,89 +113,98 @@ export const ROUTE_DIFFICULTY_PROFILES: Record<
   },
 }
 
-interface SectionSpec {
+interface SectionTheme {
   id: string
   title: string
-  startSegment: number
-  endSegment: number
-  targetSeconds: number
+  durationSeconds: number
   signatureProp: RoadsidePropKind
   primaryColor: string
   accentColor: string
   propStep: number
+  curveAnchors: [number, number, number, number]
+  elevationPhase: number
+  elevationAmplitude: number
+  roadNarrowing: number
 }
 
-const SECTION_SPECS: SectionSpec[] = [
+const SECTION_THEMES: SectionTheme[] = [
   {
     id: 'sunset-gate',
     title: 'Sunset Gate',
-    startSegment: 0,
-    endSegment: 3,
-    targetSeconds: 4.2,
+    durationSeconds: 4.2,
     signatureProp: 'palm',
     primaryColor: '#ff5ab3',
     accentColor: '#ffe66f',
     propStep: 56,
+    curveAnchors: [0, 0.18, 0.34, 0.18],
+    elevationPhase: 0,
+    elevationAmplitude: 2.4,
+    roadNarrowing: 0.5,
   },
   {
     id: 'glass-narrows',
     title: 'Glass Narrows',
-    startSegment: 4,
-    endSegment: 7,
-    targetSeconds: 7.5,
+    durationSeconds: 3.3,
     signatureProp: 'sign',
     primaryColor: '#4ee7ff',
     accentColor: '#ff8bd1',
     propStep: 48,
+    curveAnchors: [0, -0.22, -0.4, -0.24],
+    elevationPhase: 1.3,
+    elevationAmplitude: 2.9,
+    roadNarrowing: 1.4,
   },
   {
     id: 'magenta-crest',
     title: 'Magenta Crest',
-    startSegment: 8,
-    endSegment: 11,
-    targetSeconds: 10.8,
+    durationSeconds: 3.3,
     signatureProp: 'crystal',
     primaryColor: '#7fff92',
     accentColor: '#b57cff',
     propStep: 52,
+    curveAnchors: [0, 0.08, 0.32, 0.5],
+    elevationPhase: 2.15,
+    elevationAmplitude: 3.3,
+    roadNarrowing: 1.1,
   },
   {
     id: 'final-drop',
     title: 'Final Drop',
-    startSegment: 12,
-    endSegment: 15,
-    targetSeconds: 14.1,
+    durationSeconds: 3.3,
     signatureProp: 'sign',
     primaryColor: '#ffe66f',
     accentColor: '#4ee7ff',
     propStep: 44,
+    curveAnchors: [0.24, -0.16, -0.34, 0],
+    elevationPhase: 3.5,
+    elevationAmplitude: 3.8,
+    roadNarrowing: 0.9,
   },
 ]
 
 export function createNeonRidgeLevel(
   difficultyId: RouteDifficultyId = DEFAULT_ROUTE_DIFFICULTY,
 ): LevelManifest {
-  const difficulty = ROUTE_DIFFICULTY_PROFILES[difficultyId]
-  const sections = createRouteSections(difficulty)
-  const curvePattern = [
-    0, 0.18, 0.34, 0.18, 0, -0.22, -0.4, -0.24, 0, 0.08, 0.32, 0.5, 0.24, -0.16,
-    -0.34, 0,
-  ]
-  const segments: TrackSegment[] = curvePattern.map((curve, index) => ({
-    index,
-    start: index * DEFAULT_SEGMENT_LENGTH,
-    length: DEFAULT_SEGMENT_LENGTH,
-    curve,
-    elevation: Math.sin(index * 0.78) * 2.8,
-    roadWidth: DEFAULT_ROAD_WIDTH - (index % 5 === 3 ? 1.5 : 0),
-    sectionId: sectionForSegmentIndex(sections, index).id,
-  }))
+  return createProceduralTrack({ difficultyId })
+}
+
+export function createProceduralTrack(
+  options: ProceduralTrackOptions = {},
+): LevelManifest {
+  const difficulty =
+    ROUTE_DIFFICULTY_PROFILES[options.difficultyId ?? DEFAULT_ROUTE_DIFFICULTY]
+  const seed = normalizeSeed(options.seed ?? DEFAULT_TRACK_SEED)
+  const sectionCount = clampSectionCount(options.sectionCount ?? DEFAULT_SECTION_COUNT)
+  const sections = createRouteSections(difficulty, seed, sectionCount)
+  const segments = createTrackSegments(sections, seed)
   const totalLength = segments.length * DEFAULT_SEGMENT_LENGTH
 
   return {
     id: 'neon-ridge-engine-m1',
     title: 'Neon Ridge Run',
     difficulty,
+    generator: 'procedural-v1',
+    proceduralSeed: seed,
     segmentLength: DEFAULT_SEGMENT_LENGTH,
     totalLength,
     roadWidth: DEFAULT_ROAD_WIDTH,
@@ -190,7 +212,7 @@ export function createNeonRidgeLevel(
     checkpoints: sections.map((section) => section.checkpoint),
     sections,
     segments,
-    props: createRoadsideProps(sections),
+    props: createRoadsideProps(sections, seed),
   }
 }
 
@@ -261,48 +283,141 @@ export function wrapDistance(distance: number, totalLength: number): number {
   return ((distance % totalLength) + totalLength) % totalLength
 }
 
-function createRouteSections(difficulty: RouteDifficultyProfile): RouteSection[] {
-  return SECTION_SPECS.map((section) => ({
-    id: section.id,
-    title: section.title,
-    start: section.startSegment * DEFAULT_SEGMENT_LENGTH,
-    end: (section.endSegment + 1) * DEFAULT_SEGMENT_LENGTH,
-    checkpoint: (section.endSegment + 1) * DEFAULT_SEGMENT_LENGTH,
-    targetSeconds: roundSeconds(section.targetSeconds * difficulty.targetMultiplier),
-    signatureProp: section.signatureProp,
-    primaryColor: section.primaryColor,
-    accentColor: section.accentColor,
-    propStep: section.propStep,
-  }))
+function createRouteSections(
+  difficulty: RouteDifficultyProfile,
+  seed: number,
+  sectionCount: number,
+): RouteSection[] {
+  let cumulativeSeconds = 0
+
+  return Array.from({ length: sectionCount }, (_, index) => {
+    const theme = themeForIndex(index)
+    const start = index * SEGMENTS_PER_SECTION * DEFAULT_SEGMENT_LENGTH
+    const end = start + SEGMENTS_PER_SECTION * DEFAULT_SEGMENT_LENGTH
+    cumulativeSeconds += sectionDurationSeconds(theme, seed, sectionCount, index)
+
+    return {
+      id: theme.id,
+      title: theme.title,
+      start,
+      end,
+      checkpoint: end,
+      targetSeconds: roundSeconds(cumulativeSeconds * difficulty.targetMultiplier),
+      signatureProp: theme.signatureProp,
+      primaryColor: theme.primaryColor,
+      accentColor: theme.accentColor,
+      propStep: theme.propStep,
+    }
+  })
 }
 
-function sectionForSegmentIndex(sections: RouteSection[], segmentIndex: number): RouteSection {
-  const segmentStart = segmentIndex * DEFAULT_SEGMENT_LENGTH
-  const section = sections.find(
-    (candidate) => segmentStart >= candidate.start && segmentStart < candidate.end,
-  )
+function createTrackSegments(sections: RouteSection[], seed: number): TrackSegment[] {
+  const canonical = isCanonicalTrack(seed, sections.length)
+  const segments: TrackSegment[] = []
 
-  if (!section) {
-    throw new Error(`No route section for segment ${segmentIndex}`)
+  for (let sectionIndex = 0; sectionIndex < sections.length; sectionIndex += 1) {
+    const section = sections[sectionIndex]
+    const theme = themeForIndex(sectionIndex)
+
+    for (let localIndex = 0; localIndex < SEGMENTS_PER_SECTION; localIndex += 1) {
+      const index = sectionIndex * SEGMENTS_PER_SECTION + localIndex
+      const curve = createSegmentCurve(theme, seed, sections.length, sectionIndex, localIndex)
+      segments.push({
+        index,
+        start: index * DEFAULT_SEGMENT_LENGTH,
+        length: DEFAULT_SEGMENT_LENGTH,
+        curve,
+        elevation: createSegmentElevation(theme, seed, canonical, sectionIndex, localIndex),
+        roadWidth: createSegmentRoadWidth(theme, seed, canonical, sectionIndex, localIndex),
+        sectionId: section.id,
+      })
+    }
   }
 
-  return section
+  return canonical ? segments : removeCurveBias(segments)
 }
 
-function createRoadsideProps(sections: RouteSection[]): RoadsideProp[] {
-  const props: RoadsideProp[] = []
+function createSegmentCurve(
+  theme: SectionTheme,
+  seed: number,
+  sectionCount: number,
+  sectionIndex: number,
+  localIndex: number,
+): number {
+  const baseCurve = theme.curveAnchors[localIndex]
 
-  for (const section of sections) {
+  if (isCanonicalTrack(seed, sectionCount)) {
+    return baseCurve
+  }
+
+  const sectionBias = seededRange(seed, sectionIndex, 19, -0.12, 0.12)
+  const localJitter = seededRangeLocal(seed, sectionIndex, localIndex, 23, -0.09, 0.09)
+  const wave =
+    Math.sin((seed % 997) * 0.013 + (sectionIndex * SEGMENTS_PER_SECTION + localIndex) * 0.84) *
+    0.06
+  const strength = seededRange(seed, sectionIndex, 31, 0.82, 1.18)
+
+  return roundGeometry(clamp(baseCurve * strength + sectionBias + localJitter + wave, -0.58, 0.58))
+}
+
+function createSegmentElevation(
+  theme: SectionTheme,
+  seed: number,
+  canonical: boolean,
+  sectionIndex: number,
+  localIndex: number,
+): number {
+  const index = sectionIndex * SEGMENTS_PER_SECTION + localIndex
+
+  if (canonical) {
+    return roundGeometry(Math.sin(index * 0.78) * 2.8)
+  }
+
+  const phase = theme.elevationPhase + seededRange(seed, sectionIndex, 37, -0.6, 0.6)
+  const crest =
+    Math.sin(index * 0.68 + phase) * theme.elevationAmplitude +
+    seededRangeLocal(seed, sectionIndex, localIndex, 41, -0.65, 0.65)
+
+  return roundGeometry(crest)
+}
+
+function createSegmentRoadWidth(
+  theme: SectionTheme,
+  seed: number,
+  canonical: boolean,
+  sectionIndex: number,
+  localIndex: number,
+): number {
+  const index = sectionIndex * SEGMENTS_PER_SECTION + localIndex
+
+  if (canonical) {
+    return DEFAULT_ROAD_WIDTH - (index % 5 === 3 ? 1.5 : 0)
+  }
+
+  const apexPinch = localIndex === 2 ? theme.roadNarrowing : theme.roadNarrowing * 0.35
+  const jitter = seededRangeLocal(seed, sectionIndex, localIndex, 47, 0, 0.95)
+
+  return roundGeometry(clamp(DEFAULT_ROAD_WIDTH - apexPinch - jitter, 12.8, 17.5))
+}
+
+function createRoadsideProps(sections: RouteSection[], seed: number): RoadsideProp[] {
+  const props: RoadsideProp[] = []
+  const canonical = isCanonicalTrack(seed, sections.length)
+
+  for (let sectionIndex = 0; sectionIndex < sections.length; sectionIndex += 1) {
+    const section = sections[sectionIndex]
+
     for (let distance = section.start + 40; distance < section.end; distance += section.propStep) {
       const localIndex = Math.floor((distance - section.start) / section.propStep)
-      const side = (localIndex + section.start / DEFAULT_SEGMENT_LENGTH) % 2 === 0 ? -1 : 1
-      const kind = propKindForIndex(section, localIndex)
+      const side = createPropSide(section, seed, canonical, sectionIndex, localIndex)
+      const kind = propKindForIndex(section, seed, canonical, sectionIndex, localIndex)
+
       props.push({
         id: `${section.id}-prop-${distance}`,
         distance,
         sectionId: section.id,
         side,
-        offset: 14 + ((localIndex + section.id.length) % 3) * 3,
+        offset: createPropOffset(section, seed, canonical, sectionIndex, localIndex),
         kind,
         color: localIndex % 2 === 0 ? section.primaryColor : section.accentColor,
       })
@@ -312,12 +427,157 @@ function createRoadsideProps(sections: RouteSection[]): RoadsideProp[] {
   return props
 }
 
-function propKindForIndex(section: RouteSection, index: number): RoadsidePropKind {
-  if (index % 3 === 0) {
-    return section.signatureProp
+function createPropSide(
+  section: RouteSection,
+  seed: number,
+  canonical: boolean,
+  sectionIndex: number,
+  localIndex: number,
+): -1 | 1 {
+  if (canonical) {
+    return (localIndex + section.start / DEFAULT_SEGMENT_LENGTH) % 2 === 0 ? -1 : 1
   }
 
-  return index % 3 === 1 ? 'sign' : 'crystal'
+  return seededUnit(seed, sectionIndex, localIndex, 53) < 0.5 ? -1 : 1
+}
+
+function createPropOffset(
+  section: RouteSection,
+  seed: number,
+  canonical: boolean,
+  sectionIndex: number,
+  localIndex: number,
+): number {
+  if (canonical) {
+    return 14 + ((localIndex + section.id.length) % 3) * 3
+  }
+
+  return roundGeometry(13 + Math.floor(seededUnit(seed, sectionIndex, localIndex, 59) * 5) * 2.4)
+}
+
+function propKindForIndex(
+  section: RouteSection,
+  seed: number,
+  canonical: boolean,
+  sectionIndex: number,
+  index: number,
+): RoadsidePropKind {
+  if (canonical) {
+    if (index % 3 === 0) {
+      return section.signatureProp
+    }
+
+    return index % 3 === 1 ? 'sign' : 'crystal'
+  }
+
+  const roll = seededUnit(seed, sectionIndex, index, 61)
+  if (roll < 0.45) {
+    return section.signatureProp
+  }
+  if (roll < 0.72) {
+    return 'sign'
+  }
+  return roll < 0.88 ? 'crystal' : 'palm'
+}
+
+function themeForIndex(index: number): SectionTheme {
+  const baseTheme = SECTION_THEMES[index % SECTION_THEMES.length]
+  const lap = Math.floor(index / SECTION_THEMES.length)
+
+  if (lap === 0) {
+    return baseTheme
+  }
+
+  const sign = lap % 2 === 0 ? 1 : -1
+
+  return {
+    ...baseTheme,
+    id: `${baseTheme.id}-${lap + 1}`,
+    title: `${baseTheme.title} ${lap + 1}`,
+    durationSeconds: baseTheme.durationSeconds + lap * 0.28,
+    propStep: Math.max(36, baseTheme.propStep - lap * 3),
+    curveAnchors: baseTheme.curveAnchors.map((curve) =>
+      roundGeometry(curve * sign),
+    ) as SectionTheme['curveAnchors'],
+  }
+}
+
+function sectionDurationSeconds(
+  theme: SectionTheme,
+  seed: number,
+  sectionCount: number,
+  sectionIndex: number,
+): number {
+  if (isCanonicalTrack(seed, sectionCount)) {
+    return theme.durationSeconds
+  }
+
+  const jitter = seededRange(seed, sectionIndex, 67, -0.22, 0.42)
+  return Math.max(2.8, theme.durationSeconds + jitter)
+}
+
+function removeCurveBias(segments: TrackSegment[]): TrackSegment[] {
+  const averageCurve =
+    segments.reduce((sum, segment) => sum + segment.curve, 0) / segments.length
+
+  return segments.map((segment) => ({
+    ...segment,
+    curve: roundGeometry(clamp(segment.curve - averageCurve * 0.75, -0.58, 0.58)),
+  }))
+}
+
+function isCanonicalTrack(seed: number, sectionCount: number): boolean {
+  return seed === DEFAULT_TRACK_SEED && sectionCount === DEFAULT_SECTION_COUNT
+}
+
+function clampSectionCount(sectionCount: number): number {
+  if (!Number.isFinite(sectionCount)) {
+    return DEFAULT_SECTION_COUNT
+  }
+
+  return Math.max(MIN_SECTION_COUNT, Math.min(MAX_SECTION_COUNT, Math.round(sectionCount)))
+}
+
+function normalizeSeed(seed: number): number {
+  if (!Number.isFinite(seed)) {
+    return DEFAULT_TRACK_SEED
+  }
+
+  return Math.trunc(Math.abs(seed)) >>> 0
+}
+
+function seededRange(
+  seed: number,
+  sectionIndex: number,
+  salt: number,
+  min: number,
+  max: number,
+): number {
+  return lerp(min, max, seededUnit(seed, sectionIndex, salt))
+}
+
+function seededRangeLocal(
+  seed: number,
+  sectionIndex: number,
+  localIndex: number,
+  salt: number,
+  min: number,
+  max: number,
+): number {
+  return lerp(min, max, seededUnit(seed, sectionIndex, localIndex, salt))
+}
+
+function seededUnit(seed: number, ...values: number[]): number {
+  let hash = seed >>> 0
+
+  for (const value of values) {
+    hash ^= Math.trunc(value) + 0x9e3779b9 + (hash << 6) + (hash >>> 2)
+    hash = Math.imul(hash ^ (hash >>> 16), 0x7feb352d)
+    hash = Math.imul(hash ^ (hash >>> 15), 0x846ca68b)
+    hash ^= hash >>> 16
+  }
+
+  return (hash >>> 0) / 0x1_0000_0000
 }
 
 function smoothStep(value: number): number {
@@ -328,6 +588,14 @@ function lerp(start: number, end: number, amount: number): number {
   return start + (end - start) * amount
 }
 
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value))
+}
+
 function roundSeconds(value: number): number {
   return Math.round(value * 10) / 10
+}
+
+function roundGeometry(value: number): number {
+  return Math.round(value * 10_000) / 10_000
 }

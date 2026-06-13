@@ -45,6 +45,7 @@ export interface CalibrationTrace {
 
 export interface CalibrationTraceOptions {
   difficultyId?: RouteDifficultyId
+  seed?: number
   maxSeconds?: number
   fixedDt?: number
   sampleEverySeconds?: number
@@ -63,7 +64,7 @@ export function runCalibrationTrace(
   const fixedDt = options.fixedDt ?? DEFAULT_FIXED_DT
   const sampleEverySeconds = options.sampleEverySeconds ?? DEFAULT_SAMPLE_EVERY_SECONDS
   const targetSpeed = options.targetSpeed ?? DEFAULT_TARGET_SPEED
-  const sim = new RacingSim(options.difficultyId)
+  const sim = new RacingSim(options.difficultyId, { seed: options.seed })
   const samples: TraceSample[] = []
   let nextSampleAt = 0
   let snapshot = sim.snapshot()

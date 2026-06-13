@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   calculateCenterOffset,
   checkpointTargetSeconds,
+  createProceduralTrack,
+  DEFAULT_TRACK_SEED,
   createNeonRidgeLevel,
   ROUTE_DIFFICULTY_PROFILES,
   currentRouteSection,
@@ -16,12 +18,73 @@ describe('track manifest', () => {
 
     expect(level.id).toBe('neon-ridge-engine-m1')
     expect(level.difficulty).toEqual(ROUTE_DIFFICULTY_PROFILES.arcade)
+    expect(level.generator).toBe('procedural-v1')
+    expect(level.proceduralSeed).toBe(DEFAULT_TRACK_SEED)
     expect(level.segments.length).toBeGreaterThan(8)
     expect(level.totalLength).toBe(level.segmentLength * level.segments.length)
     expect(level.checkpoints).toEqual([...level.checkpoints].sort((a, b) => a - b))
     expect(level.checkpoints).toEqual(level.sections.map((section) => section.checkpoint))
     expect(level.targetTimeSeconds).toBe(level.sections.at(-1)?.targetSeconds)
     expect(level.props.length).toBeGreaterThan(8)
+  })
+
+  it('preserves the canonical route identities while generating from section themes', () => {
+    const level = createNeonRidgeLevel()
+
+    expect(level.sections.map((section) => section.id)).toEqual([
+      'sunset-gate',
+      'glass-narrows',
+      'magenta-crest',
+      'final-drop',
+    ])
+    expect(level.sections.map((section) => section.targetSeconds)).toEqual([
+      4.2,
+      7.5,
+      10.8,
+      14.1,
+    ])
+  })
+
+  it('creates deterministic seeded procedural variants', () => {
+    const first = createProceduralTrack({ seed: 90210 })
+    const second = createProceduralTrack({ seed: 90210 })
+    const alternate = createProceduralTrack({ seed: 13579 })
+
+    expect(second.sections).toEqual(first.sections)
+    expect(second.segments).toEqual(first.segments)
+    expect(second.props).toEqual(first.props)
+    expect(alternate.proceduralSeed).toBe(13579)
+    expect(alternate.segments.map((segment) => segment.curve)).not.toEqual(
+      first.segments.map((segment) => segment.curve),
+    )
+    expect(alternate.props.map((prop) => [prop.side, prop.kind, prop.offset])).not.toEqual(
+      first.props.map((prop) => [prop.side, prop.kind, prop.offset]),
+    )
+  })
+
+  it('supports longer procedural route manifests with contiguous sections', () => {
+    const level = createProceduralTrack({
+      difficultyId: 'touring',
+      seed: 24680,
+      sectionCount: 6,
+    })
+
+    expect(level.sections).toHaveLength(6)
+    expect(level.checkpoints).toHaveLength(6)
+    expect(level.segments).toHaveLength(24)
+    expect(level.sections[4].id).toBe('sunset-gate-2')
+    expect(new Set(level.sections.map((section) => section.id)).size).toBe(
+      level.sections.length,
+    )
+    expect(level.sections[0].start).toBe(0)
+    expect(level.sections.at(-1)?.end).toBe(level.totalLength)
+
+    for (let index = 1; index < level.sections.length; index += 1) {
+      expect(level.sections[index].start).toBe(level.sections[index - 1].end)
+      expect(level.sections[index].targetSeconds).toBeGreaterThan(
+        level.sections[index - 1].targetSeconds,
+      )
+    }
   })
 
   it('scales checkpoint targets for alternate route difficulty profiles', () => {

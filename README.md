@@ -1,13 +1,16 @@
 # Neon Ridge Run
 
-Engine-first milestone for `ps1-outrun-racing-sim`: an original PS1-style Three.js road racing prototype with deterministic controls, procedural road data, telemetry hooks, and browser QA.
+Engine-first milestone for `ps1-outrun-racing-sim`: an original PS1-style Three.js road racing prototype with deterministic controls, seeded procedural road data, telemetry hooks, and browser QA.
 
 Play in browser: https://basilisk-bat.github.io/ps1-outrun-racing-sim/
+
+Try a generated route variant by adding a seed, for example:
+https://basilisk-bat.github.io/ps1-outrun-racing-sim/?seed=90210
 
 ## Current Milestone
 
 - Full-screen Three.js playable surface.
-- Low-poly procedural highway with named route sections, curves, elevation, road stripes, section-authored roadside props, horizon, and a player car placeholder.
+- Seeded procedural highway generator with named route sections, curves, elevation, width variation, road stripes, section-authored roadside props, horizon, and a player car placeholder.
 - Fixed-step car simulation for acceleration, braking, steering, drift, offroad, and collision hooks.
 - HUD/debug panels for speed, distance, checkpoint, route section, split grade, style rank, target time, checkpoint score, drift score, style chain, collision, top speed, offroad time, lateral position, and lap.
 - Checkpoint split scoring with calibrated cumulative route targets, Touring/Arcade/Rival timing profiles, profile-owned score thresholds, collision/offroad penalties, deterministic drift/clean-line style scoring, chain breaks, and bounded telemetry history.
@@ -43,5 +46,6 @@ All milestone visuals are primitive meshes, procedural geometry, CSS, and local 
 ## Next Milestones
 
 - Gameplay pass: traffic, boost/drift scoring, route splits, lap goals, and failure/recovery states.
+- Level-design pass: route seed picker, longer route manifests, roadside prop set expansion, and authored checkpoint moments on top of the procedural generator.
 - Asset pass: original cover art, car silhouettes, road-surface textures, sky treatments, and prop sets.
 - Audio pass: original retro engine loop, UI tones, checkpoint sounds, and optional music.

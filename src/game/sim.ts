@@ -2,8 +2,9 @@ import { createInitialCarState, resetCar, updateCar } from './car.ts'
 import type { InputState } from './input.ts'
 import {
   checkpointTargetSeconds as routeCheckpointTargetSeconds,
-  createNeonRidgeLevel,
+  createProceduralTrack,
   currentRouteSection,
+  DEFAULT_ROUTE_DIFFICULTY,
   nextCheckpoint,
   sampleTrack,
 } from './track.ts'
@@ -15,6 +16,7 @@ import {
 import type { CarState } from './car.ts'
 import type {
   LevelManifest,
+  ProceduralTrackOptions,
   RouteDifficultyId,
   RouteSection,
   TrackSample,
@@ -36,8 +38,11 @@ export class RacingSim {
   readonly car = createInitialCarState()
   readonly telemetry = createTelemetryState()
 
-  constructor(difficultyId?: RouteDifficultyId) {
-    this.level = createNeonRidgeLevel(difficultyId)
+  constructor(
+    difficultyId: RouteDifficultyId = DEFAULT_ROUTE_DIFFICULTY,
+    trackOptions: Omit<ProceduralTrackOptions, 'difficultyId'> = {},
+  ) {
+    this.level = createProceduralTrack({ difficultyId, ...trackOptions })
   }
 
   step(input: InputState, dt: number): RacingSnapshot {
