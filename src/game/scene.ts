@@ -1,6 +1,12 @@
 import * as THREE from 'three'
 import type { RacingSnapshot } from './sim.ts'
-import type { LevelManifest, RecoveryGate, RoadsideProp, TrafficVehicle } from './track.ts'
+import type {
+  ComboLadder,
+  LevelManifest,
+  RecoveryGate,
+  RoadsideProp,
+  TrafficVehicle,
+} from './track.ts'
 import { sampleTrack } from './track.ts'
 import { trafficVehiclePose } from './traffic.ts'
 
@@ -126,6 +132,7 @@ function createRidgeLoop(level: LevelManifest): THREE.Group {
   group.add(createStripes(level))
   group.add(createRoadSurfaceDetails(level))
   group.add(createDriftZoneMarkers(level))
+  group.add(createComboLadderMarkers(level))
   group.add(createRecoveryGateMarkers(level))
   group.add(createProps(level))
   return group
@@ -284,6 +291,51 @@ function createZoneGate(
   crossbar.position.y = 7.25
   group.add(crossbar)
   group.position.set(centerX, elevation + 0.08, z)
+
+  return group
+}
+
+function createComboLadderMarkers(level: LevelManifest): THREE.Group {
+  const group = new THREE.Group()
+
+  for (const ladder of level.comboLadders) {
+    group.add(createComboLadderMesh(level, ladder))
+  }
+
+  return group
+}
+
+function createComboLadderMesh(level: LevelManifest, ladder: ComboLadder): THREE.Group {
+  const group = new THREE.Group()
+  const color = new THREE.Color(ladder.color)
+  const rungMaterial = new THREE.MeshBasicMaterial({ color })
+  const postMaterial = new THREE.MeshLambertMaterial({ color: 0xfff2ad, flatShading: true })
+  const rungCount = 5
+
+  for (let index = 0; index < rungCount; index += 1) {
+    const progress = index / Math.max(1, rungCount - 1)
+    const distance = ladder.start + (ladder.end - ladder.start) * progress
+    const sample = sampleTrack(level, distance)
+    const rung = new THREE.Mesh(
+      new THREE.BoxGeometry(sample.roadWidth * 0.58, 0.07, 1.25),
+      rungMaterial,
+    )
+    rung.position.set(sample.centerX, sample.elevation + 0.18, -distance)
+    rung.rotation.y = sample.curve * 0.55
+    group.add(rung)
+
+    if (index === 0 || index === rungCount - 1) {
+      for (const side of [-1, 1] as const) {
+        const post = new THREE.Mesh(new THREE.BoxGeometry(0.48, 4.2, 0.48), postMaterial)
+        post.position.set(
+          sample.centerX + side * (sample.roadWidth * 0.5 + 0.95),
+          sample.elevation + 2.1,
+          -distance,
+        )
+        group.add(post)
+      }
+    }
+  }
 
   return group
 }

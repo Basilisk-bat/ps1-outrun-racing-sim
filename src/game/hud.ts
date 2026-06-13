@@ -18,6 +18,7 @@ export function createHud(host: HTMLElement): Hud {
       ${row('DRF', 'styleScore')}
       ${row('COM', 'styleCombo')}
       ${row('BST', 'bestStyleCombo')}
+      ${row('LAD', 'comboLadder')}
       ${row('NIT', 'boost')}
       ${row('ZON', 'driftZone')}
       ${row('RIV', 'rival')}
@@ -66,6 +67,7 @@ export function createHud(host: HTMLElement): Hud {
       set(values, 'styleScore', `${snapshot.telemetry.styleScore}`)
       set(values, 'styleCombo', `${snapshot.telemetry.styleCombo}`)
       set(values, 'bestStyleCombo', `${snapshot.telemetry.bestStyleCombo}`)
+      set(values, 'comboLadder', formatComboLadder(snapshot))
       set(
         values,
         'boost',
@@ -135,6 +137,18 @@ export function createHud(host: HTMLElement): Hud {
 function formatRivalGap(gapMeters: number): string {
   const sign = gapMeters >= 0 ? '+' : ''
   return `${sign}${gapMeters} M`
+}
+
+function formatComboLadder(snapshot: RacingSnapshot): string {
+  if (snapshot.telemetry.activeComboLadderId) {
+    return `${snapshot.telemetry.activeComboLadderProgress}/${snapshot.telemetry.activeComboLadderTarget}`
+  }
+
+  if (snapshot.telemetry.lastComboLadderResult?.cleared) {
+    return 'CLEAR'
+  }
+
+  return `${snapshot.level.comboLadders.length} READY`
 }
 
 function row(label: string, key: string): string {

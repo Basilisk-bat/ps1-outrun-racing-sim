@@ -1,11 +1,18 @@
 import { awardCarBoost } from './car.ts'
 import type { CarState } from './car.ts'
 import {
+  currentComboLadder,
   currentDriftZone,
   currentRecoveryGate,
   ROUTE_DIFFICULTY_PROFILES,
 } from './track.ts'
-import type { LevelManifest, RecoveryGate, RouteDifficultyProfile, TrackSample } from './track.ts'
+import type {
+  ComboLadder,
+  LevelManifest,
+  RecoveryGate,
+  RouteDifficultyProfile,
+  TrackSample,
+} from './track.ts'
 
 export type TelemetryEventType =
   | 'checkpoint'
@@ -20,12 +27,13 @@ export type TelemetryEventType =
   | 'recovery-gate'
   | 'time-extend'
   | 'time-over'
+  | 'combo-ladder'
 export type CheckpointGrade = 'gold' | 'silver' | 'bronze' | 'miss'
 export type StyleRank = 'neutral' | 'clean' | 'drift' | 'risk' | 'near-miss'
 export type RivalStatus = 'ahead' | 'even' | 'pressure'
 
 export interface StyleAward {
-  kind: 'clean' | 'drift' | 'near-miss' | 'zone'
+  kind: 'clean' | 'drift' | 'near-miss' | 'zone' | 'combo'
   points: number
   multiplier: number
 }
@@ -49,6 +57,17 @@ export interface RecoveryGateResult {
   timeAwardSeconds: number
   lateralBefore: number
   lateralAfter: number
+}
+
+export interface ComboLadderResult {
+  ladderId: string
+  sectionId: string
+  title: string
+  lap: number
+  progress: number
+  targetCombo: number
+  cleared: boolean
+  bonusScore: number
 }
 
 export interface TelemetryEvent {
@@ -103,6 +122,16 @@ export interface TelemetryState {
   recoveryGateTimeSeconds: number
   usedRecoveryGateKeys: string[]
   lastRecoveryGate?: RecoveryGateResult
+  comboLadderScore: number
+  activeComboLadderId?: string
+  activeComboLadderKey?: string
+  activeComboLadderTitle: string
+  activeComboLadderStartCombo: number
+  activeComboLadderProgress: number
+  activeComboLadderTarget: number
+  comboLadderResults: ComboLadderResult[]
+  resolvedComboLadderKeys: string[]
+  lastComboLadderResult?: ComboLadderResult
   rivalGapMeters: number
   rivalPressure: number
   rivalStatus: RivalStatus
@@ -155,6 +184,13 @@ export function createTelemetryState(): TelemetryState {
     recoveryGateUses: 0,
     recoveryGateTimeSeconds: 0,
     usedRecoveryGateKeys: [],
+    comboLadderScore: 0,
+    activeComboLadderTitle: 'OPEN COMBO',
+    activeComboLadderStartCombo: 0,
+    activeComboLadderProgress: 0,
+    activeComboLadderTarget: 0,
+    comboLadderResults: [],
+    resolvedComboLadderKeys: [],
     rivalGapMeters: 0,
     rivalPressure: 0,
     rivalStatus: 'even',
@@ -271,6 +307,8 @@ export function updateTelemetry(
     pushTelemetryEvent(telemetry, car, 'near-miss', `${nearMissDetails} +${nearMissPoints}`)
   }
 
+  updateComboLadderScoring(telemetry, level, car, collided, Boolean(nearMissDetails))
+
   if (car.boostActive && shouldEmitSparseEvent(telemetry, 'boost', 1.15)) {
     telemetry.lastArcadeBanner = 'BOOST'
     pushTelemetryEvent(telemetry, car, 'boost', 'NITRO')
@@ -355,12 +393,22 @@ export function resetTelemetry(telemetry: TelemetryState, car: CarState): void {
   telemetry.recoveryGateUses = 0
   telemetry.recoveryGateTimeSeconds = 0
   telemetry.usedRecoveryGateKeys = []
+  telemetry.comboLadderScore = 0
+  telemetry.activeComboLadderTitle = 'OPEN COMBO'
+  telemetry.activeComboLadderStartCombo = 0
+  telemetry.activeComboLadderProgress = 0
+  telemetry.activeComboLadderTarget = 0
+  telemetry.comboLadderResults = []
+  telemetry.resolvedComboLadderKeys = []
   telemetry.rivalGapMeters = 0
   telemetry.rivalPressure = 0
   telemetry.rivalStatus = 'even'
   delete telemetry.activeDriftZoneId
   delete telemetry.lastDriftZoneResult
   delete telemetry.lastRecoveryGate
+  delete telemetry.activeComboLadderId
+  delete telemetry.activeComboLadderKey
+  delete telemetry.lastComboLadderResult
   telemetry.timeRemaining = ARCADE_START_TIME_SECONDS
   telemetry.timeExtendedSeconds = 0
   telemetry.raceExpired = false
@@ -433,6 +481,136 @@ function updateDriftZoneScoring(
   if (shouldEmitSparseEvent(telemetry, 'drift-zone', 1.25)) {
     pushTelemetryEvent(telemetry, car, 'drift-zone', `${zone.title} +${points}`)
   }
+}
+
+function updateComboLadderScoring(
+  telemetry: TelemetryState,
+  level: LevelManifest,
+  car: CarState,
+  collided: boolean,
+  preserveEntrySignal = false,
+): void {
+  const ladder = currentComboLadder(level, car.distance)
+  const ladderKey = ladder ? comboLadderKey(telemetry, ladder) : undefined
+
+  if (
+    telemetry.activeComboLadderId &&
+    telemetry.activeComboLadderId !== ladder?.id
+  ) {
+    finalizeComboLadder(telemetry, level, car)
+  }
+
+  if (!ladder) {
+    telemetry.activeComboLadderTitle = 'OPEN COMBO'
+    telemetry.activeComboLadderProgress = 0
+    telemetry.activeComboLadderTarget = 0
+    return
+  }
+
+  if (ladderKey && telemetry.resolvedComboLadderKeys.includes(ladderKey)) {
+    telemetry.activeComboLadderTitle = ladder.title
+    telemetry.activeComboLadderProgress = 0
+    telemetry.activeComboLadderTarget = ladder.targetCombo
+    return
+  }
+
+  if (telemetry.activeComboLadderId !== ladder.id) {
+    telemetry.activeComboLadderId = ladder.id
+    telemetry.activeComboLadderKey = ladderKey
+    telemetry.activeComboLadderTitle = ladder.title
+    telemetry.activeComboLadderStartCombo = telemetry.styleCombo
+    telemetry.activeComboLadderProgress = 0
+    telemetry.activeComboLadderTarget = ladder.targetCombo
+    if (!preserveEntrySignal) {
+      telemetry.lastArcadeBanner = `COMBO LADDER ${ladder.targetCombo}`
+      pushTelemetryEvent(telemetry, car, 'combo-ladder', `ENTER ${ladder.title}`)
+    }
+  }
+
+  const progress = Math.max(0, telemetry.styleCombo - telemetry.activeComboLadderStartCombo)
+  telemetry.activeComboLadderProgress = Math.max(
+    telemetry.activeComboLadderProgress,
+    Math.round(progress),
+  )
+
+  if (collided || car.offroad || telemetry.raceExpired) {
+    finalizeComboLadder(telemetry, level, car)
+    return
+  }
+
+  if (telemetry.activeComboLadderProgress >= telemetry.activeComboLadderTarget) {
+    finalizeComboLadder(telemetry, level, car)
+  }
+}
+
+function finalizeComboLadder(
+  telemetry: TelemetryState,
+  level: LevelManifest,
+  car: CarState,
+): void {
+  const ladder = level.comboLadders.find(
+    (candidate) => candidate.id === telemetry.activeComboLadderId,
+  )
+  if (!telemetry.activeComboLadderId) {
+    return
+  }
+
+  const targetCombo = ladder?.targetCombo ?? telemetry.activeComboLadderTarget
+  const progress = telemetry.activeComboLadderProgress
+  const result: ComboLadderResult = {
+    ladderId: telemetry.activeComboLadderId,
+    sectionId:
+      ladder?.sectionId ??
+      telemetry.activeComboLadderId.replace('-combo-ladder', ''),
+    title: telemetry.activeComboLadderTitle,
+    lap: telemetry.currentLap + 1,
+    progress,
+    targetCombo,
+    cleared: progress >= targetCombo,
+    bonusScore: 0,
+  }
+
+  if (result.cleared) {
+    result.bonusScore = ladder?.bonusScore ?? Math.max(80, Math.round(targetCombo * 0.6))
+    telemetry.comboLadderScore += result.bonusScore
+    applyStyleAward(telemetry, 'combo', result.bonusScore, 1.65)
+    telemetry.lastArcadeBanner = `COMBO CLEAR +${result.bonusScore}`
+  } else {
+    telemetry.lastArcadeBanner = 'COMBO DROPPED'
+  }
+
+  telemetry.comboLadderResults.push(result)
+  if (telemetry.comboLadderResults.length > 16) {
+    telemetry.comboLadderResults.shift()
+  }
+  telemetry.lastComboLadderResult = result
+
+  if (
+    telemetry.activeComboLadderKey &&
+    !telemetry.resolvedComboLadderKeys.includes(telemetry.activeComboLadderKey)
+  ) {
+    telemetry.resolvedComboLadderKeys.push(telemetry.activeComboLadderKey)
+    if (telemetry.resolvedComboLadderKeys.length > 24) {
+      telemetry.resolvedComboLadderKeys.shift()
+    }
+  }
+
+  pushTelemetryEvent(
+    telemetry,
+    car,
+    'combo-ladder',
+    `${result.cleared ? 'CLEAR' : 'MISS'} ${result.title} ${progress}/${targetCombo}`,
+  )
+  delete telemetry.activeComboLadderId
+  delete telemetry.activeComboLadderKey
+  telemetry.activeComboLadderTitle = 'OPEN COMBO'
+  telemetry.activeComboLadderStartCombo = 0
+  telemetry.activeComboLadderProgress = 0
+  telemetry.activeComboLadderTarget = 0
+}
+
+function comboLadderKey(telemetry: TelemetryState, ladder: ComboLadder): string {
+  return `${telemetry.currentLap}:${ladder.id}`
 }
 
 function finalizeDriftZone(

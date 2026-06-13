@@ -138,6 +138,64 @@ describe('telemetry', () => {
     expect(telemetry.lastStyleAward?.kind).toBe('zone')
   })
 
+  it('scores authored combo ladders once per lap', () => {
+    const level = createNeonRidgeLevel()
+    const car = createInitialCarState()
+    const telemetry = createTelemetryState()
+    const ladder = level.comboLadders[0]
+    const dt = 1 / 60
+
+    car.speed = 96
+    car.drift = 0.56
+    car.distance = ladder.start + 4
+
+    for (let frame = 0; frame < 260 && !telemetry.lastComboLadderResult; frame += 1) {
+      updateTelemetry(telemetry, level, car, dt, false)
+    }
+
+    expect(telemetry.lastComboLadderResult?.ladderId).toBe(ladder.id)
+    expect(telemetry.lastComboLadderResult?.cleared).toBe(true)
+    expect(telemetry.lastComboLadderResult?.progress).toBeGreaterThanOrEqual(
+      ladder.targetCombo,
+    )
+    expect(telemetry.lastComboLadderResult?.bonusScore).toBe(ladder.bonusScore)
+    expect(telemetry.comboLadderScore).toBe(ladder.bonusScore)
+    expect(telemetry.lastArcadeBanner).toContain('COMBO CLEAR')
+    expect(telemetry.lastStyleAward?.kind).toBe('combo')
+    expect(telemetry.events.at(-1)?.type).toBe('combo-ladder')
+
+    const resultCount = telemetry.comboLadderResults.length
+    for (let frame = 0; frame < 30; frame += 1) {
+      updateTelemetry(telemetry, level, car, dt, false)
+    }
+
+    expect(telemetry.comboLadderResults).toHaveLength(resultCount)
+  })
+
+  it('records dropped combo ladders when the chain breaks', () => {
+    const level = createNeonRidgeLevel()
+    const car = createInitialCarState()
+    const telemetry = createTelemetryState()
+    const ladder = level.comboLadders[0]
+
+    car.speed = 82
+    car.drift = 0.42
+    car.distance = ladder.start + 3
+    updateTelemetry(telemetry, level, car, 1 / 60, false)
+
+    expect(telemetry.activeComboLadderId).toBe(ladder.id)
+
+    car.offroad = true
+    updateTelemetry(telemetry, level, car, 1 / 60, false)
+
+    expect(telemetry.activeComboLadderId).toBeUndefined()
+    expect(telemetry.lastComboLadderResult?.ladderId).toBe(ladder.id)
+    expect(telemetry.lastComboLadderResult?.cleared).toBe(false)
+    expect(telemetry.lastComboLadderResult?.bonusScore).toBe(0)
+    expect(telemetry.comboLadderScore).toBe(0)
+    expect(telemetry.lastArcadeBanner).toBe('COMBO DROPPED')
+  })
+
   it('tracks rival pressure against route target pace', () => {
     const level = createNeonRidgeLevel('rival')
     const car = createInitialCarState()
@@ -340,6 +398,27 @@ describe('telemetry', () => {
       lateralBefore: 10,
       lateralAfter: 4,
     }
+    telemetry.comboLadderScore = 96
+    telemetry.activeComboLadderId = 'city-overlook-combo-ladder'
+    telemetry.activeComboLadderKey = '0:city-overlook-combo-ladder'
+    telemetry.activeComboLadderTitle = 'City Overlook Combo'
+    telemetry.activeComboLadderStartCombo = 120
+    telemetry.activeComboLadderProgress = 72
+    telemetry.activeComboLadderTarget = 210
+    telemetry.comboLadderResults = [
+      {
+        ladderId: 'switchback-arc-combo-ladder',
+        sectionId: 'switchback-arc',
+        title: 'Switchback Arc Combo',
+        lap: 1,
+        progress: 280,
+        targetCombo: 240,
+        cleared: true,
+        bonusScore: 148,
+      },
+    ]
+    telemetry.resolvedComboLadderKeys = ['0:switchback-arc-combo-ladder']
+    telemetry.lastComboLadderResult = telemetry.comboLadderResults[0]
     telemetry.rivalGapMeters = -42
     telemetry.rivalPressure = 73
     telemetry.rivalStatus = 'pressure'
@@ -392,6 +471,16 @@ describe('telemetry', () => {
     expect(telemetry.recoveryGateTimeSeconds).toBe(0)
     expect(telemetry.usedRecoveryGateKeys).toEqual([])
     expect(telemetry.lastRecoveryGate).toBeUndefined()
+    expect(telemetry.comboLadderScore).toBe(0)
+    expect(telemetry.activeComboLadderId).toBeUndefined()
+    expect(telemetry.activeComboLadderKey).toBeUndefined()
+    expect(telemetry.activeComboLadderTitle).toBe('OPEN COMBO')
+    expect(telemetry.activeComboLadderStartCombo).toBe(0)
+    expect(telemetry.activeComboLadderProgress).toBe(0)
+    expect(telemetry.activeComboLadderTarget).toBe(0)
+    expect(telemetry.comboLadderResults).toEqual([])
+    expect(telemetry.resolvedComboLadderKeys).toEqual([])
+    expect(telemetry.lastComboLadderResult).toBeUndefined()
     expect(telemetry.rivalGapMeters).toBe(0)
     expect(telemetry.rivalPressure).toBe(0)
     expect(telemetry.rivalStatus).toBe('even')

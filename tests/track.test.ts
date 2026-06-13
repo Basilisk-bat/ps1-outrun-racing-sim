@@ -5,6 +5,7 @@ import {
   createProceduralTrack,
   createNeonRidgeLevel,
   ROUTE_DIFFICULTY_PROFILES,
+  currentComboLadder,
   currentRecoveryGate,
   currentRouteSection,
   nextCheckpoint,
@@ -29,6 +30,7 @@ describe('track manifest', () => {
     expect(level.traffic.length).toBeGreaterThan(4)
     expect(level.driftZones).toHaveLength(level.sections.length)
     expect(level.recoveryGates).toHaveLength(level.sections.length)
+    expect(level.comboLadders).toHaveLength(level.sections.length)
     expect(new Set(level.props.map((prop) => prop.kind))).toEqual(
       new Set([
         'palm',
@@ -88,6 +90,10 @@ describe('track manifest', () => {
     expect(alternate.recoveryGates.map((gate) => gate.distance)).not.toEqual(
       first.recoveryGates.map((gate) => gate.distance),
     )
+    expect(second.comboLadders).toEqual(first.comboLadders)
+    expect(alternate.comboLadders.map((ladder) => [ladder.start, ladder.end])).not.toEqual(
+      first.comboLadders.map((ladder) => [ladder.start, ladder.end]),
+    )
   })
 
   it('authors drift zones inside every route section', () => {
@@ -122,6 +128,28 @@ describe('track manifest', () => {
       expect(gate.boostAward).toBeGreaterThan(12)
       expect(gate.timeAwardSeconds).toBeGreaterThan(1)
       expect(currentRecoveryGate(level, gate.distance)?.id).toBe(gate.id)
+    }
+  })
+
+  it('authors combo ladders through every section', () => {
+    const arcade = createNeonRidgeLevel('arcade')
+    const rival = createNeonRidgeLevel('rival')
+
+    expect(arcade.comboLadders.map((ladder) => ladder.sectionId)).toEqual(
+      arcade.sections.map((section) => section.id),
+    )
+    expect(rival.comboLadders[0].targetCombo).toBeGreaterThan(
+      arcade.comboLadders[0].targetCombo,
+    )
+    for (const ladder of arcade.comboLadders) {
+      const section = arcade.sections.find((candidate) => candidate.id === ladder.sectionId)
+      expect(section).toBeDefined()
+      expect(ladder.start).toBeGreaterThan(section?.start ?? 0)
+      expect(ladder.end).toBeLessThan(section?.end ?? 0)
+      expect(ladder.end).toBeGreaterThan(ladder.start)
+      expect(ladder.targetCombo).toBeGreaterThan(150)
+      expect(ladder.bonusScore).toBeGreaterThan(100)
+      expect(currentComboLadder(arcade, ladder.start + 1)?.id).toBe(ladder.id)
     }
   })
 

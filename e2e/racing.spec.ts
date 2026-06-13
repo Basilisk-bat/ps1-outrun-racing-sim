@@ -104,6 +104,9 @@ test('drift score economy state is exposed in browser telemetry', async ({ page 
   expect(state.recoveryGateUses).toBeGreaterThanOrEqual(0)
   expect(state.recoveryGateTimeSeconds).toBeGreaterThanOrEqual(0)
   expect(state.lastRecoveryGateId).toBeNull()
+  expect(state.comboLadders).toBeGreaterThan(4)
+  expect(state.comboLadderScore).toBeGreaterThanOrEqual(0)
+  expect(state.comboLadderResults).toBeGreaterThanOrEqual(0)
   expect(state.trafficVehicles).toBeGreaterThan(4)
   expect(state.trafficHits).toBe(0)
   expect(state.nearestTrafficDistance).toBeGreaterThan(0)
@@ -111,6 +114,7 @@ test('drift score economy state is exposed in browser telemetry', async ({ page 
   await expect(page.getByTestId('hud-panel')).toContainText('DRF')
   await expect(page.getByTestId('hud-panel')).toContainText('COM')
   await expect(page.getByTestId('hud-panel')).toContainText('BST')
+  await expect(page.getByTestId('hud-panel')).toContainText('LAD')
   await expect(page.getByTestId('hud-panel')).toContainText('NIT')
   await expect(page.getByTestId('hud-panel')).toContainText('ZON')
   await expect(page.getByTestId('hud-panel')).toContainText('RIV')
@@ -165,6 +169,60 @@ test('authored drift zones score in browser telemetry', async ({ page }) => {
   await expect(page.getByTestId('hud-panel')).toContainText('ZON')
   await expect(page.getByTestId('hud-panel')).toContainText('RIV')
   await expect(page.getByTestId('debug-panel')).toContainText('ZSC')
+})
+
+test('authored combo ladders clear in browser telemetry', async ({ page }) => {
+  await page.goto('/?difficulty=touring')
+  await page.waitForFunction(() => window.__RPK_RACING_READY__ === true)
+
+  await page.keyboard.down('ArrowUp')
+  await page.waitForFunction(() => {
+    const state = window.__RPK_RACING_STATE__
+    return Boolean(state && state.speed >= 54)
+  })
+  await page.keyboard.down('ArrowRight')
+  await page.keyboard.down('ArrowDown')
+  try {
+    await page.waitForFunction(
+      () => {
+        const state = window.__RPK_RACING_STATE__
+        return Boolean(
+          state &&
+            state.activeComboLadderId &&
+            state.activeComboLadderProgress > 0 &&
+            state.activeComboLadderTarget > 0,
+        )
+      },
+      undefined,
+      { timeout: 7_000 },
+    )
+    await page.waitForFunction(
+      () => {
+        const state = window.__RPK_RACING_STATE__
+        return Boolean(
+          state &&
+            state.comboLadderClears > 0 &&
+            state.comboLadderScore > 0 &&
+            state.lastComboLadderCleared === true,
+        )
+      },
+      undefined,
+      { timeout: 9_000 },
+    )
+  } finally {
+    await page.keyboard.up('ArrowDown')
+    await page.keyboard.up('ArrowRight')
+    await page.keyboard.up('ArrowUp')
+  }
+
+  const state = await readState(page)
+  expect(state.comboLadders).toBeGreaterThan(4)
+  expect(state.comboLadderClears).toBeGreaterThan(0)
+  expect(state.comboLadderScore).toBeGreaterThan(0)
+  expect(state.lastComboLadderTitle).toContain('Combo')
+  expect(state.lastComboLadderCleared).toBe(true)
+  await expect(page.getByTestId('hud-panel')).toContainText('LAD')
+  await expect(page.getByTestId('arcade-banner')).toBeVisible()
 })
 
 test('boost charges from drift input and drains while held', async ({ page }) => {

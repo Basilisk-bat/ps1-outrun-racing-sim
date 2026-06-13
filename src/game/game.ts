@@ -47,6 +47,16 @@ declare global {
       recoveryGateTimeSeconds: number
       lastRecoveryGateId: string | null
       lastRecoveryGateTitle: string | null
+      comboLadders: number
+      activeComboLadderId: string | null
+      activeComboLadderTitle: string
+      activeComboLadderProgress: number
+      activeComboLadderTarget: number
+      comboLadderScore: number
+      comboLadderResults: number
+      comboLadderClears: number
+      lastComboLadderTitle: string | null
+      lastComboLadderCleared: boolean | null
       rivalGapMeters: number
       rivalPressure: number
       rivalStatus: string
@@ -121,6 +131,17 @@ export function bootRacingGame(host: HTMLElement): void {
       recoveryGateTimeSeconds: state.telemetry.recoveryGateTimeSeconds,
       lastRecoveryGateId: state.telemetry.lastRecoveryGate?.gateId ?? null,
       lastRecoveryGateTitle: state.telemetry.lastRecoveryGate?.title ?? null,
+      comboLadders: state.level.comboLadders.length,
+      activeComboLadderId: state.telemetry.activeComboLadderId ?? null,
+      activeComboLadderTitle: state.telemetry.activeComboLadderTitle,
+      activeComboLadderProgress: state.telemetry.activeComboLadderProgress,
+      activeComboLadderTarget: state.telemetry.activeComboLadderTarget,
+      comboLadderScore: state.telemetry.comboLadderScore,
+      comboLadderResults: state.telemetry.comboLadderResults.length,
+      comboLadderClears: state.telemetry.comboLadderResults.filter((result) => result.cleared)
+        .length,
+      lastComboLadderTitle: state.telemetry.lastComboLadderResult?.title ?? null,
+      lastComboLadderCleared: state.telemetry.lastComboLadderResult?.cleared ?? null,
       rivalGapMeters: state.telemetry.rivalGapMeters,
       rivalPressure: state.telemetry.rivalPressure,
       rivalStatus: state.telemetry.rivalStatus,

@@ -61,6 +61,17 @@ export interface RecoveryGate {
   color: string
 }
 
+export interface ComboLadder {
+  id: string
+  sectionId: string
+  title: string
+  start: number
+  end: number
+  targetCombo: number
+  bonusScore: number
+  color: string
+}
+
 export interface RouteSection {
   id: string
   title: string
@@ -102,6 +113,7 @@ export interface LevelManifest {
   traffic: TrafficVehicle[]
   driftZones: DriftZone[]
   recoveryGates: RecoveryGate[]
+  comboLadders: ComboLadder[]
 }
 
 export interface TrackSample {
@@ -260,6 +272,7 @@ export function createProceduralTrack(
     traffic: createTrafficVehicles(sections, seed),
     driftZones: createDriftZones(sections, difficulty, seed),
     recoveryGates: createRecoveryGates(sections, difficulty, seed),
+    comboLadders: createComboLadders(sections, difficulty, seed),
   }
 }
 
@@ -333,6 +346,16 @@ export function currentRecoveryGate(
   )
 }
 
+export function currentComboLadder(
+  level: LevelManifest,
+  distance: number,
+): ComboLadder | undefined {
+  const lapDistance = wrapDistance(distance, level.totalLength)
+  return level.comboLadders.find(
+    (ladder) => lapDistance >= ladder.start && lapDistance < ladder.end,
+  )
+}
+
 export function checkpointTargetSeconds(level: LevelManifest, distance: number): number {
   const checkpoint = nextCheckpoint(level, distance)
   return (
@@ -400,6 +423,37 @@ function createRecoveryGates(
       boostAward: Math.round(16 * pressureScale),
       timeAwardSeconds: roundSeconds(1.6 * pressureScale),
       color: section.primaryColor,
+    }
+  })
+}
+
+function createComboLadders(
+  sections: RouteSection[],
+  difficulty: RouteDifficultyProfile,
+  seed: number,
+): ComboLadder[] {
+  const canonical = isCanonicalTrack(seed, sections.length)
+
+  return sections.map((section, index) => {
+    const length = section.end - section.start
+    const startRatio = canonical
+      ? 0.14 + (index % 3) * 0.025
+      : seededRange(seed, index, 109, 0.1, 0.22)
+    const endRatio = canonical
+      ? 0.9 - (index % 2) * 0.025
+      : seededRange(seed, index, 113, 0.82, 0.93)
+    const pressure = difficulty.id === 'rival' ? 1.24 : difficulty.id === 'touring' ? 0.82 : 1
+    const targetCombo = Math.round((170 + index * 28) * pressure)
+
+    return {
+      id: `${section.id}-combo-ladder`,
+      sectionId: section.id,
+      title: `${section.title} Combo`,
+      start: roundGeometry(section.start + length * startRatio),
+      end: roundGeometry(section.start + length * endRatio),
+      targetCombo,
+      bonusScore: Math.round(targetCombo * 0.62),
+      color: index % 2 === 0 ? section.primaryColor : section.accentColor,
     }
   })
 }
