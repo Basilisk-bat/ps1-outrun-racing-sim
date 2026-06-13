@@ -78,7 +78,9 @@ test('score economy state is exposed in browser telemetry', async ({ page }) => 
   expect(state.score).toBe(state.checkpointScore + state.styleScore)
   expect(state.calibration.completedLaps).toBe(1)
   expect(state.calibration.completedCheckpoints).toBe(4)
-  expect(state.calibration.paceVerdict).not.toBe('incomplete')
+  expect(state.calibration.paceVerdict).toBe('on-pace')
+  expect(state.calibration.averageDeltaSeconds).toBeGreaterThan(-2)
+  expect(state.calibration.averageDeltaSeconds).toBeLessThan(-0.5)
 
   await expect(page.getByTestId('hud-panel')).toContainText('STY')
   await expect(page.getByTestId('debug-panel')).toContainText('DRF')
