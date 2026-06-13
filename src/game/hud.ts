@@ -19,6 +19,8 @@ export function createHud(host: HTMLElement): Hud {
       ${row('COM', 'styleCombo')}
       ${row('BST', 'bestStyleCombo')}
       ${row('NIT', 'boost')}
+      ${row('ZON', 'driftZone')}
+      ${row('RIV', 'rival')}
       ${row('TRF', 'traffic')}
       ${row('HIT', 'collisions')}
       ${row('MIS', 'nearMisses')}
@@ -27,6 +29,7 @@ export function createHud(host: HTMLElement): Hud {
       ${row('STY', 'style')}
       ${row('TOP', 'topSpeed')}
       ${row('AWD', 'award')}
+      ${row('ZSC', 'driftZoneScore')}
       ${row('EXT', 'timeExtended')}
       ${row('RCV', 'recovery')}
       ${row('OFF', 'offroad')}
@@ -69,6 +72,14 @@ export function createHud(host: HTMLElement): Hud {
       )
       set(
         values,
+        'driftZone',
+        snapshot.telemetry.activeDriftZoneId
+          ? `${snapshot.telemetry.activeDriftZoneScore}/${snapshot.telemetry.activeDriftZoneTarget}`
+          : 'OPEN',
+      )
+      set(values, 'rival', formatRivalGap(snapshot.telemetry.rivalGapMeters))
+      set(
+        values,
         'traffic',
         snapshot.traffic.nearest
           ? `${Math.round(snapshot.traffic.nearest.distanceAhead)} M`
@@ -85,6 +96,7 @@ export function createHud(host: HTMLElement): Hud {
           ? `+${snapshot.telemetry.lastStyleAward.points}`
           : 'READY',
       )
+      set(values, 'driftZoneScore', `${snapshot.telemetry.driftZoneScore}`)
       set(values, 'timeExtended', `+${snapshot.telemetry.timeExtendedSeconds.toFixed(1)} S`)
       set(
         values,
@@ -108,6 +120,11 @@ export function createHud(host: HTMLElement): Hud {
       }
     },
   }
+}
+
+function formatRivalGap(gapMeters: number): string {
+  const sign = gapMeters >= 0 ? '+' : ''
+  return `${sign}${gapMeters} M`
 }
 
 function row(label: string, key: string): string {

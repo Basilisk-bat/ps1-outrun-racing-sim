@@ -1,5 +1,5 @@
 import type { CarState } from './car.ts'
-import { ROUTE_DIFFICULTY_PROFILES } from './track.ts'
+import { currentDriftZone, ROUTE_DIFFICULTY_PROFILES } from './track.ts'
 import type { LevelManifest, RouteDifficultyProfile } from './track.ts'
 
 export type TelemetryEventType =
@@ -11,15 +11,27 @@ export type TelemetryEventType =
   | 'reset'
   | 'lap'
   | 'style'
+  | 'drift-zone'
   | 'time-extend'
   | 'time-over'
 export type CheckpointGrade = 'gold' | 'silver' | 'bronze' | 'miss'
 export type StyleRank = 'neutral' | 'clean' | 'drift' | 'risk' | 'near-miss'
+export type RivalStatus = 'ahead' | 'even' | 'pressure'
 
 export interface StyleAward {
-  kind: 'clean' | 'drift' | 'near-miss'
+  kind: 'clean' | 'drift' | 'near-miss' | 'zone'
   points: number
   multiplier: number
+}
+
+export interface DriftZoneResult {
+  zoneId: string
+  sectionId: string
+  title: string
+  score: number
+  targetScore: number
+  cleared: boolean
+  bonusScore: number
 }
 
 export interface TelemetryEvent {
@@ -63,6 +75,16 @@ export interface TelemetryState {
   styleAccumulator: number
   lastStyleAward?: StyleAward
   score: number
+  driftZoneScore: number
+  activeDriftZoneId?: string
+  activeDriftZoneTitle: string
+  activeDriftZoneScore: number
+  activeDriftZoneTarget: number
+  completedDriftZones: DriftZoneResult[]
+  lastDriftZoneResult?: DriftZoneResult
+  rivalGapMeters: number
+  rivalPressure: number
+  rivalStatus: RivalStatus
   timeRemaining: number
   timeExtendedSeconds: number
   raceExpired: boolean
@@ -104,6 +126,14 @@ export function createTelemetryState(): TelemetryState {
     styleRank: 'neutral',
     styleAccumulator: 0,
     score: 0,
+    driftZoneScore: 0,
+    activeDriftZoneTitle: 'OPEN ROAD',
+    activeDriftZoneScore: 0,
+    activeDriftZoneTarget: 0,
+    completedDriftZones: [],
+    rivalGapMeters: 0,
+    rivalPressure: 0,
+    rivalStatus: 'even',
     timeRemaining: ARCADE_START_TIME_SECONDS,
     timeExtendedSeconds: 0,
     raceExpired: false,
@@ -152,6 +182,8 @@ export function updateTelemetry(
         : `STYLE +${styleAward}`,
     )
   }
+  updateRivalPressure(telemetry, level, car)
+  updateDriftZoneScoring(telemetry, level, car, dt, collided)
 
   if (nearMissDetails) {
     const nearMissPoints = 150 + Math.round(Math.min(80, car.speed * 0.45))
@@ -236,6 +268,16 @@ export function resetTelemetry(telemetry: TelemetryState, car: CarState): void {
   telemetry.styleRank = 'neutral'
   telemetry.styleAccumulator = 0
   telemetry.score = 0
+  telemetry.driftZoneScore = 0
+  telemetry.activeDriftZoneTitle = 'OPEN ROAD'
+  telemetry.activeDriftZoneScore = 0
+  telemetry.activeDriftZoneTarget = 0
+  telemetry.completedDriftZones = []
+  telemetry.rivalGapMeters = 0
+  telemetry.rivalPressure = 0
+  telemetry.rivalStatus = 'even'
+  delete telemetry.activeDriftZoneId
+  delete telemetry.lastDriftZoneResult
   telemetry.timeRemaining = ARCADE_START_TIME_SECONDS
   telemetry.timeExtendedSeconds = 0
   telemetry.raceExpired = false
@@ -245,6 +287,117 @@ export function resetTelemetry(telemetry: TelemetryState, car: CarState): void {
   telemetry.collisionCountAtLastCheckpoint = 0
   telemetry.offroadTimeAtLastCheckpoint = 0
   pushTelemetryEvent(telemetry, car, 'reset')
+}
+
+function updateDriftZoneScoring(
+  telemetry: TelemetryState,
+  level: LevelManifest,
+  car: CarState,
+  dt: number,
+  collided: boolean,
+): void {
+  const zone = currentDriftZone(level, car.distance)
+
+  if (telemetry.activeDriftZoneId && telemetry.activeDriftZoneId !== zone?.id) {
+    finalizeDriftZone(telemetry, car)
+  }
+
+  if (!zone) {
+    telemetry.activeDriftZoneTitle = 'OPEN ROAD'
+    telemetry.activeDriftZoneTarget = 0
+    return
+  }
+
+  if (telemetry.activeDriftZoneId !== zone.id) {
+    telemetry.activeDriftZoneId = zone.id
+    telemetry.activeDriftZoneTitle = zone.title
+    telemetry.activeDriftZoneScore = 0
+    telemetry.activeDriftZoneTarget = zone.targetScore
+    telemetry.lastArcadeBanner = `DRIFT ZONE ${zone.targetScore}`
+    pushTelemetryEvent(telemetry, car, 'drift-zone', `ENTER ${zone.title}`)
+  }
+
+  if (collided || car.offroad || telemetry.raceExpired) {
+    return
+  }
+
+  const driftIntensity = Math.abs(car.drift)
+  if (car.speed < 42 || driftIntensity < 0.2) {
+    return
+  }
+
+  const speedRatio = clamp(car.speed / 112, 0.65, 1.35)
+  const zoneMultiplier = level.difficulty.id === 'rival' ? 1.18 : level.difficulty.id === 'touring' ? 0.9 : 1
+  const points = Math.floor((28 + driftIntensity * 116) * speedRatio * zoneMultiplier * dt)
+
+  if (points <= 0) {
+    return
+  }
+
+  telemetry.activeDriftZoneScore += points
+  telemetry.driftZoneScore += points
+  applyStyleAward(telemetry, 'zone', points, 1.25)
+
+  if (shouldEmitSparseEvent(telemetry, 'drift-zone', 1.25)) {
+    pushTelemetryEvent(telemetry, car, 'drift-zone', `${zone.title} +${points}`)
+  }
+}
+
+function finalizeDriftZone(telemetry: TelemetryState, car: CarState): void {
+  const result: DriftZoneResult = {
+    zoneId: telemetry.activeDriftZoneId ?? 'unknown-zone',
+    sectionId: telemetry.activeDriftZoneId?.replace('-drift-zone', '') ?? 'unknown',
+    title: telemetry.activeDriftZoneTitle,
+    score: telemetry.activeDriftZoneScore,
+    targetScore: telemetry.activeDriftZoneTarget,
+    cleared: telemetry.activeDriftZoneScore >= telemetry.activeDriftZoneTarget,
+    bonusScore: 0,
+  }
+
+  if (result.cleared) {
+    result.bonusScore = Math.max(60, Math.round(result.targetScore * 0.55))
+    applyStyleAward(telemetry, 'zone', result.bonusScore, 1.5)
+    telemetry.lastArcadeBanner = `ZONE CLEAR +${result.bonusScore}`
+  } else {
+    telemetry.lastArcadeBanner = 'ZONE MISSED'
+  }
+
+  telemetry.completedDriftZones.push(result)
+  if (telemetry.completedDriftZones.length > 16) {
+    telemetry.completedDriftZones.shift()
+  }
+  telemetry.lastDriftZoneResult = result
+  pushTelemetryEvent(
+    telemetry,
+    car,
+    'drift-zone',
+    `${result.cleared ? 'CLEAR' : 'MISS'} ${result.title} ${result.score}/${result.targetScore}`,
+  )
+  delete telemetry.activeDriftZoneId
+  telemetry.activeDriftZoneTitle = 'OPEN ROAD'
+  telemetry.activeDriftZoneScore = 0
+  telemetry.activeDriftZoneTarget = 0
+}
+
+function updateRivalPressure(
+  telemetry: TelemetryState,
+  level: LevelManifest,
+  car: CarState,
+): void {
+  const targetLap = Math.max(1, level.targetTimeSeconds)
+  const lapElapsed = Math.max(0, telemetry.elapsed - telemetry.currentLap * targetLap)
+  const rivalDistance =
+    telemetry.currentLap * level.totalLength +
+    clamp(lapElapsed / targetLap, 0, 1) * level.totalLength
+  const gap = car.distance - rivalDistance
+
+  telemetry.rivalGapMeters = Math.round(gap)
+  telemetry.rivalPressure = Math.round(clamp((-gap + 90) / 1.8, 0, 100))
+  telemetry.rivalStatus = gap >= 45 ? 'ahead' : gap <= -30 ? 'pressure' : 'even'
+
+  if (telemetry.rivalStatus === 'pressure' && shouldEmitSparseEvent(telemetry, 'drift-zone', 4)) {
+    telemetry.lastArcadeBanner = 'RIVAL PRESSURE'
+  }
 }
 
 export function gradeCheckpoint(

@@ -38,8 +38,11 @@ describe('racing sim snapshots', () => {
     expect(snapshot.car.speed).toBeLessThan(92)
     expect(snapshot.traffic.hitCount).toBe(1)
     expect(snapshot.traffic.lastHitVehicleId).toBe(vehicle.id)
-    expect(snapshot.telemetry.events.at(-1)?.type).toBe('collision')
-    expect(snapshot.telemetry.events.at(-1)?.details).toContain(vehicle.id)
+    expect(
+      snapshot.telemetry.events.some(
+        (event) => event.type === 'collision' && event.details?.includes(vehicle.id),
+      ),
+    ).toBe(true)
 
     const reset = sim.reset()
     expect(reset.traffic.hitCount).toBe(0)
@@ -67,6 +70,21 @@ describe('racing sim snapshots', () => {
     expect(snapshot.telemetry.lastStyleAward?.kind).toBe('near-miss')
     expect(snapshot.telemetry.lastArcadeBanner).toBe('NEAR MISS')
     expect(snapshot.telemetry.events.at(-1)?.type).toBe('near-miss')
+  })
+
+  it('exposes active drift zone and rival pressure in snapshots', () => {
+    const sim = new RacingSim('rival')
+    const zone = sim.level.driftZones[0]
+
+    sim.car.distance = zone.start + 4
+    sim.car.speed = 94
+    sim.car.drift = 0.46
+
+    const snapshot = sim.step(neutralInput, 1 / 60)
+
+    expect(snapshot.telemetry.activeDriftZoneId).toBe(zone.id)
+    expect(snapshot.telemetry.activeDriftZoneTarget).toBe(zone.targetScore)
+    expect(snapshot.telemetry.rivalPressure).toBeGreaterThanOrEqual(0)
   })
 
   it('does not let wrapped traffic hit an idle car from behind', () => {

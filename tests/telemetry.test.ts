@@ -105,6 +105,57 @@ describe('telemetry', () => {
     expect(telemetry.styleScore).toBeGreaterThan(driftScore)
   })
 
+  it('scores and clears authored drift zones', () => {
+    const level = createNeonRidgeLevel()
+    const car = createInitialCarState()
+    const telemetry = createTelemetryState()
+    const zone = level.driftZones[0]
+    const dt = 1 / 60
+
+    car.speed = 94
+    car.drift = 0.48
+    car.distance = zone.start + 2
+
+    for (let frame = 0; frame < 210; frame += 1) {
+      updateTelemetry(telemetry, level, car, dt, false)
+    }
+
+    expect(telemetry.activeDriftZoneId).toBe(zone.id)
+    expect(telemetry.activeDriftZoneScore).toBeGreaterThan(zone.targetScore)
+    expect(telemetry.driftZoneScore).toBeGreaterThan(zone.targetScore)
+    expect(telemetry.styleRank).toBe('drift')
+
+    car.distance = zone.end + 1
+    updateTelemetry(telemetry, level, car, dt, false)
+
+    expect(telemetry.activeDriftZoneId).toBeUndefined()
+    expect(telemetry.lastDriftZoneResult?.zoneId).toBe(zone.id)
+    expect(telemetry.lastDriftZoneResult?.cleared).toBe(true)
+    expect(telemetry.completedDriftZones).toHaveLength(1)
+    expect(telemetry.lastArcadeBanner).toContain('ZONE CLEAR')
+    expect(telemetry.lastStyleAward?.kind).toBe('zone')
+  })
+
+  it('tracks rival pressure against route target pace', () => {
+    const level = createNeonRidgeLevel('rival')
+    const car = createInitialCarState()
+    const telemetry = createTelemetryState()
+
+    telemetry.elapsed = level.targetTimeSeconds * 0.5
+    car.distance = level.totalLength * 0.35
+    updateTelemetry(telemetry, level, car, 1 / 60, false)
+
+    expect(telemetry.rivalGapMeters).toBeLessThan(0)
+    expect(telemetry.rivalPressure).toBeGreaterThan(50)
+    expect(telemetry.rivalStatus).toBe('pressure')
+
+    car.distance = level.totalLength * 0.68
+    updateTelemetry(telemetry, level, car, 1 / 60, false)
+
+    expect(telemetry.rivalGapMeters).toBeGreaterThan(0)
+    expect(telemetry.rivalStatus).toBe('ahead')
+  })
+
   it('keeps checkpoint score separate from style score', () => {
     const level = createNeonRidgeLevel()
     const car = createInitialCarState()
@@ -225,6 +276,26 @@ describe('telemetry', () => {
       multiplier: 1.1,
     }
     telemetry.score = 800
+    telemetry.driftZoneScore = 150
+    telemetry.activeDriftZoneId = 'city-overlook-drift-zone'
+    telemetry.activeDriftZoneTitle = 'City Overlook Drift'
+    telemetry.activeDriftZoneScore = 80
+    telemetry.activeDriftZoneTarget = 120
+    telemetry.completedDriftZones = [
+      {
+        zoneId: 'switchback-arc-drift-zone',
+        sectionId: 'switchback-arc',
+        title: 'Switchback Arc Drift',
+        score: 128,
+        targetScore: 120,
+        cleared: true,
+        bonusScore: 66,
+      },
+    ]
+    telemetry.lastDriftZoneResult = telemetry.completedDriftZones[0]
+    telemetry.rivalGapMeters = -42
+    telemetry.rivalPressure = 73
+    telemetry.rivalStatus = 'pressure'
     telemetry.timeRemaining = 3
     telemetry.timeExtendedSeconds = 9
     telemetry.raceExpired = true
@@ -263,6 +334,16 @@ describe('telemetry', () => {
     expect(telemetry.styleAccumulator).toBe(0)
     expect(telemetry.lastStyleAward).toBeUndefined()
     expect(telemetry.score).toBe(0)
+    expect(telemetry.driftZoneScore).toBe(0)
+    expect(telemetry.activeDriftZoneId).toBeUndefined()
+    expect(telemetry.activeDriftZoneTitle).toBe('OPEN ROAD')
+    expect(telemetry.activeDriftZoneScore).toBe(0)
+    expect(telemetry.activeDriftZoneTarget).toBe(0)
+    expect(telemetry.completedDriftZones).toEqual([])
+    expect(telemetry.lastDriftZoneResult).toBeUndefined()
+    expect(telemetry.rivalGapMeters).toBe(0)
+    expect(telemetry.rivalPressure).toBe(0)
+    expect(telemetry.rivalStatus).toBe('even')
     expect(telemetry.timeRemaining).toBe(ARCADE_START_TIME_SECONDS)
     expect(telemetry.timeExtendedSeconds).toBe(0)
     expect(telemetry.raceExpired).toBe(false)

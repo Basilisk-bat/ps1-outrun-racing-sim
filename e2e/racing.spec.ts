@@ -98,6 +98,8 @@ test('drift score economy state is exposed in browser telemetry', async ({ page 
   expect(state.raceExpired).toBe(false)
   expect(state.lastArcadeBanner.length).toBeGreaterThan(0)
   expect(state.boostMeter).toBeGreaterThan(0)
+  expect(state.rivalPressure).toBeGreaterThanOrEqual(0)
+  expect(state.rivalStatus.length).toBeGreaterThan(0)
   expect(state.trafficVehicles).toBeGreaterThan(4)
   expect(state.trafficHits).toBe(0)
   expect(state.nearestTrafficDistance).toBeGreaterThan(0)
@@ -106,13 +108,58 @@ test('drift score economy state is exposed in browser telemetry', async ({ page 
   await expect(page.getByTestId('hud-panel')).toContainText('COM')
   await expect(page.getByTestId('hud-panel')).toContainText('BST')
   await expect(page.getByTestId('hud-panel')).toContainText('NIT')
+  await expect(page.getByTestId('hud-panel')).toContainText('ZON')
+  await expect(page.getByTestId('hud-panel')).toContainText('RIV')
   await expect(page.getByTestId('hud-panel')).toContainText('TIM')
   await expect(page.getByTestId('debug-panel')).toContainText('AWD')
+  await expect(page.getByTestId('debug-panel')).toContainText('ZSC')
   await expect(page.getByTestId('debug-panel')).toContainText('EXT')
   await expect(page.getByTestId('debug-panel')).toContainText('RCV')
   await expect(page.getByTestId('hud-panel')).toContainText('TRF')
   await expect(page.getByTestId('arcade-banner')).toBeVisible()
   await expect(page.getByTestId('title-strip')).toContainText('DRIFT')
+})
+
+test('authored drift zones score in browser telemetry', async ({ page }) => {
+  await page.goto('/?difficulty=rival')
+  await page.waitForFunction(() => window.__RPK_RACING_READY__ === true)
+
+  await page.keyboard.down('ArrowUp')
+  await page.waitForFunction(() => {
+    const state = window.__RPK_RACING_STATE__
+    return Boolean(state && state.speed >= 58)
+  })
+  await page.keyboard.down('ArrowRight')
+  await page.keyboard.down('ArrowDown')
+  try {
+    await page.waitForFunction(
+      () => {
+        const state = window.__RPK_RACING_STATE__
+        return Boolean(
+          state &&
+            state.activeDriftZoneId &&
+            state.activeDriftZoneScore > 0 &&
+            state.activeDriftZoneTarget > 0,
+        )
+      },
+      undefined,
+      { timeout: 8_000 },
+    )
+  } finally {
+    await page.keyboard.up('ArrowDown')
+    await page.keyboard.up('ArrowRight')
+    await page.keyboard.up('ArrowUp')
+  }
+
+  const state = await readState(page)
+  expect(state.activeDriftZoneId).toContain('drift-zone')
+  expect(state.activeDriftZoneTitle).toContain('Drift')
+  expect(state.driftZoneScore).toBeGreaterThan(0)
+  expect(state.rivalGapMeters).not.toBeNaN()
+  expect(state.rivalPressure).toBeGreaterThanOrEqual(0)
+  await expect(page.getByTestId('hud-panel')).toContainText('ZON')
+  await expect(page.getByTestId('hud-panel')).toContainText('RIV')
+  await expect(page.getByTestId('debug-panel')).toContainText('ZSC')
 })
 
 test('boost charges from drift input and drains while held', async ({ page }) => {

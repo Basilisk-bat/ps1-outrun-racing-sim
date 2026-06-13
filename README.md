@@ -7,11 +7,11 @@ Play in browser: https://basilisk-bat.github.io/ps1-outrun-racing-sim/
 ## Current Milestone
 
 - Full-screen Three.js playable surface.
-- Endless low-poly ridge highway that loops around the player, with switchbacks, elevation, width variation, road stripes, section-authored roadside props, deterministic traffic, and a city skyline below the overlook.
+- Endless low-poly ridge highway that loops around the player, with switchbacks, elevation, width variation, road stripes, section-authored roadside props, drift-zone gate landmarks, deterministic traffic, and a city skyline below the overlook.
 - Fixed-step arcade car simulation for acceleration, braking, steering, brake-to-drift initiation, boost charge/drain, collision recovery, offroad, and collision hooks.
 - Checkpoint countdown loop with grade-based time extensions, one-shot time-over telemetry, and center-screen cabinet callouts for boost, near-miss, recovery, and checkpoint awards.
-- HUD/debug panels for speed, distance, ridge section, time remaining, drift score, combo, best combo, boost, traffic range, collision count, near-misses, extension total, recovery state, top speed, current style, latest award, offroad time, lateral position, and run time.
-- Drift-first score economy with clean driving, controlled slide scoring, near-miss bonuses, combo growth, chain breaks, traffic/offroad risk, and bounded telemetry history.
+- HUD/debug panels for speed, distance, ridge section, time remaining, drift score, combo, best combo, boost, authored drift-zone progress, rival gap, traffic range, collision count, near-misses, extension total, recovery state, top speed, current style, latest award, offroad time, lateral position, and run time.
+- Drift-first score economy with clean driving, controlled slide scoring, authored drift-zone bonuses, near-miss bonuses, combo growth, chain breaks, traffic/offroad risk, rival pressure, and bounded telemetry history.
 - Local Web Audio engine loop and original UI tones for boost, checkpoint, near-miss, collision, and time-over events after a browser input gesture.
 - Deterministic calibration trace capture for a clean-line playthrough, including section deltas, grade counts, on-pace verdict, sampled frames, and browser telemetry exposure.
 - Unit tests for endless ridge generation, route-section pacing, car dynamics, telemetry, traffic contacts, score economy behavior, and calibration traces.
@@ -45,7 +45,7 @@ All milestone visuals are primitive meshes, procedural geometry, CSS, and local 
 
 ## Next Milestones
 
-- Gameplay pass: traffic density tuning, authored combo ladders, stronger route recovery states, and route-specific rival pressure.
-- Level-design pass: more ridge landmarks, city-depth treatments, roadside prop expansion, and authored drift zones on top of the endless generator.
+- Gameplay pass: traffic density tuning, authored combo ladders, and stronger route recovery states.
+- Level-design pass: city-depth treatments, roadside prop expansion, and additional landmark variety.
 - Asset pass: original cover art, car silhouettes, road-surface textures, sky treatments, and prop sets.
 - Audio pass: optional original music, richer engine modulation, and mix controls.

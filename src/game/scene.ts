@@ -124,6 +124,7 @@ function createRidgeLoop(level: LevelManifest): THREE.Group {
   group.add(createTerrain(level))
   group.add(createRoad(level))
   group.add(createStripes(level))
+  group.add(createDriftZoneMarkers(level))
   group.add(createProps(level))
   return group
 }
@@ -203,6 +204,59 @@ function createStripes(level: LevelManifest): THREE.Group {
       group.add(edge)
     }
   }
+
+  return group
+}
+
+function createDriftZoneMarkers(level: LevelManifest): THREE.Group {
+  const group = new THREE.Group()
+
+  for (const zone of level.driftZones) {
+    const startSample = sampleTrack(level, zone.start)
+    const endSample = sampleTrack(level, zone.end)
+    const color = new THREE.Color(zone.color)
+    group.add(createZoneGate(startSample.centerX, startSample.elevation, -zone.start, color, 'start'))
+    group.add(createZoneGate(endSample.centerX, endSample.elevation, -zone.end, color, 'finish'))
+
+    const markerCount = 3
+    for (let index = 1; index <= markerCount; index += 1) {
+      const distance = zone.start + ((zone.end - zone.start) * index) / (markerCount + 1)
+      const sample = sampleTrack(level, distance)
+      const marker = new THREE.Mesh(
+        new THREE.BoxGeometry(sample.roadWidth * 0.82, 0.08, 1.4),
+        new THREE.MeshBasicMaterial({ color }),
+      )
+      marker.position.set(sample.centerX, sample.elevation + 0.16, -distance)
+      group.add(marker)
+    }
+  }
+
+  return group
+}
+
+function createZoneGate(
+  centerX: number,
+  elevation: number,
+  z: number,
+  color: THREE.Color,
+  variant: 'start' | 'finish',
+): THREE.Group {
+  const group = new THREE.Group()
+  const material = new THREE.MeshBasicMaterial({ color })
+  const capMaterial = new THREE.MeshBasicMaterial({
+    color: variant === 'start' ? 0xfff2ad : 0x72f2ff,
+  })
+
+  for (const side of [-1, 1] as const) {
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.75, 7.2, 0.75), material)
+    post.position.set(side * 9.8, 3.6, 0)
+    group.add(post)
+  }
+
+  const crossbar = new THREE.Mesh(new THREE.BoxGeometry(21.4, 0.7, 0.7), capMaterial)
+  crossbar.position.y = 7.25
+  group.add(crossbar)
+  group.position.set(centerX, elevation + 0.08, z)
 
   return group
 }

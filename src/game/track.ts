@@ -32,6 +32,17 @@ export interface TrafficVehicle {
   color: string
 }
 
+export interface DriftZone {
+  id: string
+  sectionId: string
+  title: string
+  start: number
+  end: number
+  targetScore: number
+  bonusScore: number
+  color: string
+}
+
 export interface RouteSection {
   id: string
   title: string
@@ -71,6 +82,7 @@ export interface LevelManifest {
   segments: TrackSegment[]
   props: RoadsideProp[]
   traffic: TrafficVehicle[]
+  driftZones: DriftZone[]
 }
 
 export interface TrackSample {
@@ -227,6 +239,7 @@ export function createProceduralTrack(
     segments,
     props: createRoadsideProps(sections, seed),
     traffic: createTrafficVehicles(sections, seed),
+    driftZones: createDriftZones(sections, difficulty, seed),
   }
 }
 
@@ -285,6 +298,11 @@ export function currentRouteSection(level: LevelManifest, distance: number): Rou
   )
 }
 
+export function currentDriftZone(level: LevelManifest, distance: number): DriftZone | undefined {
+  const lapDistance = wrapDistance(distance, level.totalLength)
+  return level.driftZones.find((zone) => lapDistance >= zone.start && lapDistance < zone.end)
+}
+
 export function checkpointTargetSeconds(level: LevelManifest, distance: number): number {
   const checkpoint = nextCheckpoint(level, distance)
   return (
@@ -295,6 +313,37 @@ export function checkpointTargetSeconds(level: LevelManifest, distance: number):
 
 export function wrapDistance(distance: number, totalLength: number): number {
   return ((distance % totalLength) + totalLength) % totalLength
+}
+
+function createDriftZones(
+  sections: RouteSection[],
+  difficulty: RouteDifficultyProfile,
+  seed: number,
+): DriftZone[] {
+  const canonical = isCanonicalTrack(seed, sections.length)
+
+  return sections.map((section, index) => {
+    const length = section.end - section.start
+    const startOffset = canonical
+      ? length * (0.28 + (index % 2) * 0.06)
+      : length * seededRange(seed, index, 89, 0.24, 0.36)
+    const endOffset = canonical
+      ? length * (0.72 + (index % 3) * 0.035)
+      : length * seededRange(seed, index, 97, 0.66, 0.82)
+    const pressure = difficulty.id === 'rival' ? 1.18 : difficulty.id === 'touring' ? 0.86 : 1
+    const targetScore = Math.round((120 + index * 14) * pressure)
+
+    return {
+      id: `${section.id}-drift-zone`,
+      sectionId: section.id,
+      title: `${section.title} Drift`,
+      start: roundGeometry(section.start + startOffset),
+      end: roundGeometry(Math.min(section.end - 18, section.start + endOffset)),
+      targetScore,
+      bonusScore: Math.round(targetScore * 0.55),
+      color: section.accentColor,
+    }
+  })
 }
 
 function createRouteSections(

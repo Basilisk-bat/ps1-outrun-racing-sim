@@ -26,6 +26,7 @@ describe('track manifest', () => {
     expect(level.targetTimeSeconds).toBe(level.sections.at(-1)?.targetSeconds)
     expect(level.props.length).toBeGreaterThan(8)
     expect(level.traffic.length).toBeGreaterThan(4)
+    expect(level.driftZones).toHaveLength(level.sections.length)
   })
 
   it('preserves the canonical ridge identities while generating from section themes', () => {
@@ -66,6 +67,27 @@ describe('track manifest', () => {
     expect(alternate.traffic.map((vehicle) => [vehicle.lane, vehicle.kind, vehicle.speed])).not.toEqual(
       first.traffic.map((vehicle) => [vehicle.lane, vehicle.kind, vehicle.speed]),
     )
+    expect(second.driftZones).toEqual(first.driftZones)
+    expect(alternate.driftZones.map((zone) => [zone.start, zone.end])).not.toEqual(
+      first.driftZones.map((zone) => [zone.start, zone.end]),
+    )
+  })
+
+  it('authors drift zones inside every route section', () => {
+    const level = createNeonRidgeLevel()
+
+    expect(level.driftZones.map((zone) => zone.sectionId)).toEqual(
+      level.sections.map((section) => section.id),
+    )
+    for (const zone of level.driftZones) {
+      const section = level.sections.find((candidate) => candidate.id === zone.sectionId)
+      expect(section).toBeDefined()
+      expect(zone.start).toBeGreaterThan(section?.start ?? 0)
+      expect(zone.end).toBeLessThan(section?.end ?? 0)
+      expect(zone.end).toBeGreaterThan(zone.start)
+      expect(zone.targetScore).toBeGreaterThan(90)
+      expect(zone.bonusScore).toBeGreaterThan(40)
+    }
   })
 
   it('places deterministic traffic inside authored route sections', () => {

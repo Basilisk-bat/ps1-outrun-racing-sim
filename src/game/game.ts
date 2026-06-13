@@ -36,6 +36,15 @@ declare global {
       lastNearMissVehicleId: string | null
       nearestTrafficDistance: number | null
       nearestTrafficLane: number | null
+      activeDriftZoneId: string | null
+      activeDriftZoneTitle: string
+      activeDriftZoneScore: number
+      activeDriftZoneTarget: number
+      driftZoneScore: number
+      completedDriftZones: number
+      rivalGapMeters: number
+      rivalPressure: number
+      rivalStatus: string
       timeRemaining: number
       timeExtendedSeconds: number
       raceExpired: boolean
@@ -96,6 +105,15 @@ export function bootRacingGame(host: HTMLElement): void {
       lastNearMissVehicleId: state.traffic.lastNearMissVehicleId,
       nearestTrafficDistance: state.traffic.nearest?.distanceAhead ?? null,
       nearestTrafficLane: state.traffic.nearest?.lane ?? null,
+      activeDriftZoneId: state.telemetry.activeDriftZoneId ?? null,
+      activeDriftZoneTitle: state.telemetry.activeDriftZoneTitle,
+      activeDriftZoneScore: state.telemetry.activeDriftZoneScore,
+      activeDriftZoneTarget: state.telemetry.activeDriftZoneTarget,
+      driftZoneScore: state.telemetry.driftZoneScore,
+      completedDriftZones: state.telemetry.completedDriftZones.length,
+      rivalGapMeters: state.telemetry.rivalGapMeters,
+      rivalPressure: state.telemetry.rivalPressure,
+      rivalStatus: state.telemetry.rivalStatus,
       timeRemaining: state.telemetry.timeRemaining,
       timeExtendedSeconds: state.telemetry.timeExtendedSeconds,
       raceExpired: state.telemetry.raceExpired,
