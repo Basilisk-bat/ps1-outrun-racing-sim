@@ -54,6 +54,20 @@ describe('car physics', () => {
     expect(car.heading).toBeLessThanOrEqual(0.42)
   })
 
+  it('uses brake and steer as an intentional drift input at speed', () => {
+    const standardBrake = createInitialCarState()
+    const driftBrake = createInitialCarState()
+    standardBrake.speed = 78
+    driftBrake.speed = 78
+
+    updateCar(standardBrake, { ...neutralInput, brake: true }, flatTrack, 1 / 6)
+    updateCar(driftBrake, { ...neutralInput, brake: true, steer: 1 }, flatTrack, 1 / 6)
+
+    expect(driftBrake.speed).toBeGreaterThan(standardBrake.speed)
+    expect(driftBrake.drift).toBeGreaterThan(standardBrake.drift)
+    expect(driftBrake.heading).toBeGreaterThan(standardBrake.heading)
+  })
+
   it('marks offroad and records a collision hook when pushed past the limit', () => {
     const car = createInitialCarState()
     car.speed = 100
