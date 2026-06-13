@@ -45,6 +45,43 @@ test('input changes speed, distance, and steering state', async ({ page }) => {
   expect(after.lateral).toBeGreaterThan(before.lateral)
 })
 
+test('score economy state is exposed in browser telemetry', async ({ page }) => {
+  await page.goto('/')
+  await page.waitForFunction(() => window.__RPK_RACING_READY__ === true)
+
+  await page.keyboard.down('ArrowUp')
+  try {
+    await page.waitForFunction(
+      () => {
+        const state = window.__RPK_RACING_STATE__
+        return Boolean(
+          state &&
+            state.speed >= 70 &&
+            state.styleScore > 0 &&
+            state.styleCombo > 0 &&
+            state.bestStyleCombo >= state.styleCombo &&
+            state.score === state.checkpointScore + state.styleScore,
+        )
+      },
+      undefined,
+      { timeout: 6_000 },
+    )
+  } finally {
+    await page.keyboard.up('ArrowUp')
+  }
+
+  const state = await readState(page)
+  expect(state.styleRank).toBe('clean')
+  expect(state.styleScore).toBeGreaterThan(0)
+  expect(state.styleCombo).toBeGreaterThan(0)
+  expect(state.bestStyleCombo).toBeGreaterThanOrEqual(state.styleCombo)
+  expect(state.score).toBe(state.checkpointScore + state.styleScore)
+
+  await expect(page.getByTestId('hud-panel')).toContainText('STY')
+  await expect(page.getByTestId('debug-panel')).toContainText('DRF')
+  await expect(page.getByTestId('debug-panel')).toContainText('CHN')
+})
+
 test('hud panels are framed without overlapping each other', async ({ page }) => {
   await page.goto('/')
   await page.waitForFunction(() => window.__RPK_RACING_READY__ === true)
