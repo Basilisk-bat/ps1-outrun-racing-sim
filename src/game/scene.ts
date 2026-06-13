@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import type { RacingSnapshot } from './sim.ts'
-import type { LevelManifest, RoadsideProp, TrafficVehicle } from './track.ts'
+import type { LevelManifest, RecoveryGate, RoadsideProp, TrafficVehicle } from './track.ts'
 import { sampleTrack } from './track.ts'
 import { trafficVehiclePose } from './traffic.ts'
 
@@ -126,6 +126,7 @@ function createRidgeLoop(level: LevelManifest): THREE.Group {
   group.add(createStripes(level))
   group.add(createRoadSurfaceDetails(level))
   group.add(createDriftZoneMarkers(level))
+  group.add(createRecoveryGateMarkers(level))
   group.add(createProps(level))
   return group
 }
@@ -284,6 +285,52 @@ function createZoneGate(
   group.add(crossbar)
   group.position.set(centerX, elevation + 0.08, z)
 
+  return group
+}
+
+function createRecoveryGateMarkers(level: LevelManifest): THREE.Group {
+  const group = new THREE.Group()
+
+  for (const gate of level.recoveryGates) {
+    group.add(createRecoveryGateMesh(level, gate))
+  }
+
+  return group
+}
+
+function createRecoveryGateMesh(level: LevelManifest, gate: RecoveryGate): THREE.Group {
+  const sample = sampleTrack(level, gate.distance)
+  const group = new THREE.Group()
+  const color = new THREE.Color(gate.color)
+  const postMaterial = new THREE.MeshLambertMaterial({ color, flatShading: true })
+  const panelMaterial = new THREE.MeshBasicMaterial({ color: 0x72f2ff })
+  const chevronMaterial = new THREE.MeshBasicMaterial({ color: 0xfff2ad })
+
+  for (const side of [-1, 1] as const) {
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.62, 5.8, 0.62), postMaterial)
+    post.position.set(side * (sample.roadWidth * 0.5 + 1.35), 2.9, 0)
+    group.add(post)
+
+    const beacon = new THREE.Mesh(new THREE.OctahedronGeometry(0.95, 0), panelMaterial)
+    beacon.position.set(side * (sample.roadWidth * 0.5 + 1.35), 6.4, 0)
+    group.add(beacon)
+  }
+
+  const panel = new THREE.Mesh(
+    new THREE.BoxGeometry(sample.roadWidth * 0.54, 0.42, 0.5),
+    panelMaterial,
+  )
+  panel.position.y = 5.85
+  group.add(panel)
+
+  for (const offset of [-3.6, 0, 3.6]) {
+    const chevron = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.08, 2.4), chevronMaterial)
+    chevron.position.set(offset, 0.22, 0)
+    chevron.rotation.y = Math.PI / 4
+    group.add(chevron)
+  }
+
+  group.position.set(sample.centerX, sample.elevation + 0.1, -gate.distance)
   return group
 }
 

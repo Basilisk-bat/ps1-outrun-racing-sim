@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createInitialCarState } from '../src/game/car.ts'
-import { createNeonRidgeLevel } from '../src/game/track.ts'
+import { createNeonRidgeLevel, sampleTrack } from '../src/game/track.ts'
 import {
   ARCADE_START_TIME_SECONDS,
   createTelemetryState,
@@ -8,6 +8,7 @@ import {
   pushTelemetryEvent,
   resetTelemetry,
   scoreCheckpoint,
+  tryApplyRecoveryGate,
   updateTelemetry,
 } from '../src/game/telemetry.ts'
 
@@ -157,6 +158,38 @@ describe('telemetry', () => {
     expect(telemetry.rivalStatus).toBe('ahead')
   })
 
+  it('applies one-shot route recovery gates for risky states', () => {
+    const level = createNeonRidgeLevel()
+    const car = createInitialCarState()
+    const telemetry = createTelemetryState()
+    const gate = level.recoveryGates[0]
+    const track = sampleTrack(level, gate.distance)
+
+    car.distance = gate.distance
+    car.lateral = track.roadWidth
+    car.lateralVelocity = 14
+    car.drift = 0.9
+    car.offroad = true
+    car.recoverySeconds = 0.8
+    telemetry.timeRemaining = 8.2
+
+    expect(tryApplyRecoveryGate(telemetry, level, car, track)).toBe(gate)
+
+    expect(car.offroad).toBe(false)
+    expect(Math.abs(car.lateral)).toBeLessThanOrEqual(track.roadWidth * 0.34)
+    expect(car.recoverySeconds).toBe(0)
+    expect(car.boostMeter).toBe(gate.boostAward)
+    expect(telemetry.recoveryGateUses).toBe(1)
+    expect(telemetry.recoveryGateTimeSeconds).toBe(gate.timeAwardSeconds)
+    expect(telemetry.timeRemaining).toBeCloseTo(8.2 + gate.timeAwardSeconds)
+    expect(telemetry.timeExtendedSeconds).toBe(gate.timeAwardSeconds)
+    expect(telemetry.lastRecoveryGate?.gateId).toBe(gate.id)
+    expect(telemetry.lastArcadeBanner).toContain('RECOVERY GATE')
+    expect(telemetry.events.at(-1)?.type).toBe('recovery-gate')
+    expect(tryApplyRecoveryGate(telemetry, level, car, track)).toBeUndefined()
+    expect(telemetry.recoveryGateUses).toBe(1)
+  })
+
   it('keeps checkpoint score separate from style score', () => {
     const level = createNeonRidgeLevel()
     const car = createInitialCarState()
@@ -294,6 +327,19 @@ describe('telemetry', () => {
       },
     ]
     telemetry.lastDriftZoneResult = telemetry.completedDriftZones[0]
+    telemetry.recoveryGateUses = 2
+    telemetry.recoveryGateTimeSeconds = 3.2
+    telemetry.usedRecoveryGateKeys = ['0:city-overlook-recovery-gate']
+    telemetry.lastRecoveryGate = {
+      gateId: 'city-overlook-recovery-gate',
+      sectionId: 'city-overlook',
+      title: 'City Overlook Recovery',
+      lap: 1,
+      boostAward: 16,
+      timeAwardSeconds: 1.6,
+      lateralBefore: 10,
+      lateralAfter: 4,
+    }
     telemetry.rivalGapMeters = -42
     telemetry.rivalPressure = 73
     telemetry.rivalStatus = 'pressure'
@@ -342,6 +388,10 @@ describe('telemetry', () => {
     expect(telemetry.activeDriftZoneTarget).toBe(0)
     expect(telemetry.completedDriftZones).toEqual([])
     expect(telemetry.lastDriftZoneResult).toBeUndefined()
+    expect(telemetry.recoveryGateUses).toBe(0)
+    expect(telemetry.recoveryGateTimeSeconds).toBe(0)
+    expect(telemetry.usedRecoveryGateKeys).toEqual([])
+    expect(telemetry.lastRecoveryGate).toBeUndefined()
     expect(telemetry.rivalGapMeters).toBe(0)
     expect(telemetry.rivalPressure).toBe(0)
     expect(telemetry.rivalStatus).toBe('even')

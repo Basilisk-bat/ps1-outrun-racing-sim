@@ -11,6 +11,7 @@ import {
 import {
   createTelemetryState,
   resetTelemetry,
+  tryApplyRecoveryGate,
   updateTelemetry,
 } from './telemetry.ts'
 import {
@@ -78,6 +79,7 @@ export class RacingSim {
         ? `NEAR ${trafficContact.nearMissVehicle.id}`
         : undefined,
     )
+    tryApplyRecoveryGate(this.telemetry, this.level, this.car, track)
 
     return this.snapshot()
   }

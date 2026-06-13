@@ -42,6 +42,11 @@ declare global {
       activeDriftZoneTarget: number
       driftZoneScore: number
       completedDriftZones: number
+      recoveryGates: number
+      recoveryGateUses: number
+      recoveryGateTimeSeconds: number
+      lastRecoveryGateId: string | null
+      lastRecoveryGateTitle: string | null
       rivalGapMeters: number
       rivalPressure: number
       rivalStatus: string
@@ -111,6 +116,11 @@ export function bootRacingGame(host: HTMLElement): void {
       activeDriftZoneTarget: state.telemetry.activeDriftZoneTarget,
       driftZoneScore: state.telemetry.driftZoneScore,
       completedDriftZones: state.telemetry.completedDriftZones.length,
+      recoveryGates: state.level.recoveryGates.length,
+      recoveryGateUses: state.telemetry.recoveryGateUses,
+      recoveryGateTimeSeconds: state.telemetry.recoveryGateTimeSeconds,
+      lastRecoveryGateId: state.telemetry.lastRecoveryGate?.gateId ?? null,
+      lastRecoveryGateTitle: state.telemetry.lastRecoveryGate?.title ?? null,
       rivalGapMeters: state.telemetry.rivalGapMeters,
       rivalPressure: state.telemetry.rivalPressure,
       rivalStatus: state.telemetry.rivalStatus,

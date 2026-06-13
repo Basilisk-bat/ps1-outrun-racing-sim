@@ -30,6 +30,7 @@ export function createHud(host: HTMLElement): Hud {
       ${row('TOP', 'topSpeed')}
       ${row('AWD', 'award')}
       ${row('ZSC', 'driftZoneScore')}
+      ${row('GAT', 'recoveryGate')}
       ${row('EXT', 'timeExtended')}
       ${row('RCV', 'recovery')}
       ${row('OFF', 'offroad')}
@@ -97,11 +98,20 @@ export function createHud(host: HTMLElement): Hud {
           : 'READY',
       )
       set(values, 'driftZoneScore', `${snapshot.telemetry.driftZoneScore}`)
+      set(
+        values,
+        'recoveryGate',
+        snapshot.telemetry.lastRecoveryGate
+          ? `${snapshot.telemetry.recoveryGateUses} USED`
+          : `${snapshot.level.recoveryGates.length} READY`,
+      )
       set(values, 'timeExtended', `+${snapshot.telemetry.timeExtendedSeconds.toFixed(1)} S`)
       set(
         values,
         'recovery',
-        snapshot.car.recoverySeconds > 0
+        snapshot.telemetry.lastRecoveryGate
+          ? `${snapshot.telemetry.recoveryGateUses} GATE`
+          : snapshot.car.recoverySeconds > 0
           ? `${snapshot.car.recoverySeconds.toFixed(1)} S`
           : 'READY',
       )

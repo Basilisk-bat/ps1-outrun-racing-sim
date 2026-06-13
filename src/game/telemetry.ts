@@ -1,6 +1,11 @@
+import { awardCarBoost } from './car.ts'
 import type { CarState } from './car.ts'
-import { currentDriftZone, ROUTE_DIFFICULTY_PROFILES } from './track.ts'
-import type { LevelManifest, RouteDifficultyProfile } from './track.ts'
+import {
+  currentDriftZone,
+  currentRecoveryGate,
+  ROUTE_DIFFICULTY_PROFILES,
+} from './track.ts'
+import type { LevelManifest, RecoveryGate, RouteDifficultyProfile, TrackSample } from './track.ts'
 
 export type TelemetryEventType =
   | 'checkpoint'
@@ -12,6 +17,7 @@ export type TelemetryEventType =
   | 'lap'
   | 'style'
   | 'drift-zone'
+  | 'recovery-gate'
   | 'time-extend'
   | 'time-over'
 export type CheckpointGrade = 'gold' | 'silver' | 'bronze' | 'miss'
@@ -32,6 +38,17 @@ export interface DriftZoneResult {
   targetScore: number
   cleared: boolean
   bonusScore: number
+}
+
+export interface RecoveryGateResult {
+  gateId: string
+  sectionId: string
+  title: string
+  lap: number
+  boostAward: number
+  timeAwardSeconds: number
+  lateralBefore: number
+  lateralAfter: number
 }
 
 export interface TelemetryEvent {
@@ -82,6 +99,10 @@ export interface TelemetryState {
   activeDriftZoneTarget: number
   completedDriftZones: DriftZoneResult[]
   lastDriftZoneResult?: DriftZoneResult
+  recoveryGateUses: number
+  recoveryGateTimeSeconds: number
+  usedRecoveryGateKeys: string[]
+  lastRecoveryGate?: RecoveryGateResult
   rivalGapMeters: number
   rivalPressure: number
   rivalStatus: RivalStatus
@@ -131,6 +152,9 @@ export function createTelemetryState(): TelemetryState {
     activeDriftZoneScore: 0,
     activeDriftZoneTarget: 0,
     completedDriftZones: [],
+    recoveryGateUses: 0,
+    recoveryGateTimeSeconds: 0,
+    usedRecoveryGateKeys: [],
     rivalGapMeters: 0,
     rivalPressure: 0,
     rivalStatus: 'even',
@@ -141,6 +165,61 @@ export function createTelemetryState(): TelemetryState {
     collisionCountAtLastCheckpoint: 0,
     offroadTimeAtLastCheckpoint: 0,
   }
+}
+
+export function tryApplyRecoveryGate(
+  telemetry: TelemetryState,
+  level: LevelManifest,
+  car: CarState,
+  track: TrackSample,
+): RecoveryGate | undefined {
+  const gate = currentRecoveryGate(level, car.distance)
+  if (!gate || telemetry.raceExpired) {
+    return undefined
+  }
+
+  const gateKey = `${telemetry.currentLap}:${gate.id}`
+  if (telemetry.usedRecoveryGateKeys.includes(gateKey) || !needsRouteRecovery(telemetry, car)) {
+    return undefined
+  }
+
+  const lateralBefore = car.lateral
+  const safeLateral = track.roadWidth * 0.34
+  car.lateral = clamp(car.lateral, -safeLateral, safeLateral)
+  car.lateralVelocity *= 0.18
+  car.drift *= 0.45
+  car.recoverySeconds = 0
+  car.collisionCooldown = Math.min(car.collisionCooldown, 0.2)
+  car.offroad = Math.abs(car.lateral) > track.roadWidth * 0.5
+  awardCarBoost(car, gate.boostAward)
+
+  telemetry.recoveryGateUses += 1
+  telemetry.recoveryGateTimeSeconds += gate.timeAwardSeconds
+  telemetry.timeRemaining += gate.timeAwardSeconds
+  telemetry.timeExtendedSeconds += gate.timeAwardSeconds
+  telemetry.usedRecoveryGateKeys.push(gateKey)
+  if (telemetry.usedRecoveryGateKeys.length > 20) {
+    telemetry.usedRecoveryGateKeys.shift()
+  }
+  telemetry.lastRecoveryGate = {
+    gateId: gate.id,
+    sectionId: gate.sectionId,
+    title: gate.title,
+    lap: telemetry.currentLap + 1,
+    boostAward: gate.boostAward,
+    timeAwardSeconds: gate.timeAwardSeconds,
+    lateralBefore,
+    lateralAfter: car.lateral,
+  }
+  telemetry.lastArcadeBanner = `RECOVERY GATE +${formatTimeExtension(gate.timeAwardSeconds)}`
+  pushTelemetryEvent(
+    telemetry,
+    car,
+    'recovery-gate',
+    `${gate.title} +${gate.boostAward}% +${formatTimeExtension(gate.timeAwardSeconds)}`,
+  )
+
+  return gate
 }
 
 export function updateTelemetry(
@@ -273,11 +352,15 @@ export function resetTelemetry(telemetry: TelemetryState, car: CarState): void {
   telemetry.activeDriftZoneScore = 0
   telemetry.activeDriftZoneTarget = 0
   telemetry.completedDriftZones = []
+  telemetry.recoveryGateUses = 0
+  telemetry.recoveryGateTimeSeconds = 0
+  telemetry.usedRecoveryGateKeys = []
   telemetry.rivalGapMeters = 0
   telemetry.rivalPressure = 0
   telemetry.rivalStatus = 'even'
   delete telemetry.activeDriftZoneId
   delete telemetry.lastDriftZoneResult
+  delete telemetry.lastRecoveryGate
   telemetry.timeRemaining = ARCADE_START_TIME_SECONDS
   telemetry.timeExtendedSeconds = 0
   telemetry.raceExpired = false
@@ -287,6 +370,15 @@ export function resetTelemetry(telemetry: TelemetryState, car: CarState): void {
   telemetry.collisionCountAtLastCheckpoint = 0
   telemetry.offroadTimeAtLastCheckpoint = 0
   pushTelemetryEvent(telemetry, car, 'reset')
+}
+
+function needsRouteRecovery(telemetry: TelemetryState, car: CarState): boolean {
+  return (
+    car.offroad ||
+    car.recoverySeconds > 0 ||
+    telemetry.rivalStatus === 'pressure' ||
+    telemetry.timeRemaining <= 10
+  )
 }
 
 function updateDriftZoneScoring(

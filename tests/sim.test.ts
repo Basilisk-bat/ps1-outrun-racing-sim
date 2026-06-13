@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { RacingSim } from '../src/game/sim.ts'
+import { sampleTrack } from '../src/game/track.ts'
 import { trafficVehiclePose } from '../src/game/traffic.ts'
 import type { InputState } from '../src/game/input.ts'
 
@@ -85,6 +86,39 @@ describe('racing sim snapshots', () => {
     expect(snapshot.telemetry.activeDriftZoneId).toBe(zone.id)
     expect(snapshot.telemetry.activeDriftZoneTarget).toBe(zone.targetScore)
     expect(snapshot.telemetry.rivalPressure).toBeGreaterThanOrEqual(0)
+  })
+
+  it('uses recovery gates once per lap to rescue bad route states', () => {
+    const sim = new RacingSim('rival')
+    const gate = sim.level.recoveryGates[0]
+    const sample = sampleTrack(sim.level, gate.distance)
+
+    sim.car.distance = gate.distance
+    sim.car.speed = 64
+    sim.car.lateral = sample.roadWidth * 0.62
+    sim.car.lateralVelocity = 7
+    sim.car.recoverySeconds = 0.6
+    sim.car.offroad = true
+    const timeBefore = sim.telemetry.timeRemaining
+
+    const snapshot = sim.step(neutralInput, 1 / 60)
+
+    expect(snapshot.telemetry.recoveryGateUses).toBe(1)
+    expect(snapshot.telemetry.lastRecoveryGate?.gateId).toBe(gate.id)
+    expect(snapshot.telemetry.lastArcadeBanner).toContain('RECOVERY GATE')
+    expect(snapshot.telemetry.events.at(-1)?.type).toBe('recovery-gate')
+    expect(snapshot.car.offroad).toBe(false)
+    expect(Math.abs(snapshot.car.lateral)).toBeLessThan(sample.roadWidth * 0.5)
+    expect(snapshot.car.recoverySeconds).toBe(0)
+    expect(snapshot.car.boostMeter).toBeGreaterThan(0)
+    expect(snapshot.telemetry.timeRemaining).toBeGreaterThan(timeBefore)
+
+    const afterFirstUse = snapshot.telemetry.recoveryGateUses
+    sim.car.offroad = true
+    sim.car.recoverySeconds = 0.5
+    sim.step(neutralInput, 1 / 60)
+
+    expect(sim.snapshot().telemetry.recoveryGateUses).toBe(afterFirstUse)
   })
 
   it('does not let wrapped traffic hit an idle car from behind', () => {

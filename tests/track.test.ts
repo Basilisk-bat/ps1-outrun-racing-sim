@@ -5,6 +5,7 @@ import {
   createProceduralTrack,
   createNeonRidgeLevel,
   ROUTE_DIFFICULTY_PROFILES,
+  currentRecoveryGate,
   currentRouteSection,
   nextCheckpoint,
   sampleTrack,
@@ -27,6 +28,7 @@ describe('track manifest', () => {
     expect(level.props.length).toBeGreaterThan(8)
     expect(level.traffic.length).toBeGreaterThan(4)
     expect(level.driftZones).toHaveLength(level.sections.length)
+    expect(level.recoveryGates).toHaveLength(level.sections.length)
     expect(new Set(level.props.map((prop) => prop.kind))).toEqual(
       new Set([
         'palm',
@@ -82,6 +84,10 @@ describe('track manifest', () => {
     expect(alternate.driftZones.map((zone) => [zone.start, zone.end])).not.toEqual(
       first.driftZones.map((zone) => [zone.start, zone.end]),
     )
+    expect(second.recoveryGates).toEqual(first.recoveryGates)
+    expect(alternate.recoveryGates.map((gate) => gate.distance)).not.toEqual(
+      first.recoveryGates.map((gate) => gate.distance),
+    )
   })
 
   it('authors drift zones inside every route section', () => {
@@ -98,6 +104,24 @@ describe('track manifest', () => {
       expect(zone.end).toBeGreaterThan(zone.start)
       expect(zone.targetScore).toBeGreaterThan(90)
       expect(zone.bonusScore).toBeGreaterThan(40)
+    }
+  })
+
+  it('places recovery gates near the end of every route section', () => {
+    const level = createNeonRidgeLevel('rival')
+
+    expect(level.recoveryGates.map((gate) => gate.sectionId)).toEqual(
+      level.sections.map((section) => section.id),
+    )
+    for (const gate of level.recoveryGates) {
+      const section = level.sections.find((candidate) => candidate.id === gate.sectionId)
+      expect(section).toBeDefined()
+      expect(gate.distance).toBeGreaterThan(section?.start ?? 0)
+      expect(gate.distance).toBeLessThan(section?.end ?? 0)
+      expect(gate.radius).toBeGreaterThan(8)
+      expect(gate.boostAward).toBeGreaterThan(12)
+      expect(gate.timeAwardSeconds).toBeGreaterThan(1)
+      expect(currentRecoveryGate(level, gate.distance)?.id).toBe(gate.id)
     }
   })
 
