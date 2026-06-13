@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   calculateCenterOffset,
+  checkpointTargetSeconds,
   createNeonRidgeLevel,
+  currentRouteSection,
   nextCheckpoint,
   sampleTrack,
   wrapDistance,
@@ -15,7 +17,43 @@ describe('track manifest', () => {
     expect(level.segments.length).toBeGreaterThan(8)
     expect(level.totalLength).toBe(level.segmentLength * level.segments.length)
     expect(level.checkpoints).toEqual([...level.checkpoints].sort((a, b) => a - b))
+    expect(level.checkpoints).toEqual(level.sections.map((section) => section.checkpoint))
+    expect(level.targetTimeSeconds).toBe(level.sections.at(-1)?.targetSeconds)
     expect(level.props.length).toBeGreaterThan(8)
+  })
+
+  it('defines contiguous named route sections with pacing targets', () => {
+    const level = createNeonRidgeLevel()
+
+    expect(level.sections[0].start).toBe(0)
+    expect(level.sections.at(-1)?.end).toBe(level.totalLength)
+
+    for (let index = 0; index < level.sections.length; index += 1) {
+      const section = level.sections[index]
+      const previous = level.sections[index - 1]
+      const next = level.sections[index + 1]
+
+      expect(section.end).toBeGreaterThan(section.start)
+      expect(section.checkpoint).toBe(section.end)
+      if (previous) {
+        expect(section.start).toBe(previous.end)
+        expect(section.targetSeconds).toBeGreaterThan(previous.targetSeconds)
+      }
+      if (next) {
+        expect(section.end).toBe(next.start)
+      }
+    }
+  })
+
+  it('maps samples and props back to their level-design sections', () => {
+    const level = createNeonRidgeLevel()
+    const sectionIds = new Set(level.sections.map((section) => section.id))
+    const propSectionIds = new Set(level.props.map((prop) => prop.sectionId))
+
+    expect(propSectionIds).toEqual(sectionIds)
+    for (const segment of level.segments) {
+      expect(sectionIds.has(segment.sectionId)).toBe(true)
+    }
   })
 
   it('wraps long distances back into the current lap', () => {
@@ -40,5 +78,16 @@ describe('track manifest', () => {
 
     expect(nextCheckpoint(level, 10)).toBe(level.checkpoints[0])
     expect(nextCheckpoint(level, level.checkpoints[0] + 2)).toBe(level.checkpoints[1])
+  })
+
+  it('reports the active route section and target time for the next checkpoint', () => {
+    const level = createNeonRidgeLevel()
+    const secondSection = level.sections[1]
+
+    expect(currentRouteSection(level, 12).id).toBe(level.sections[0].id)
+    expect(currentRouteSection(level, secondSection.start + 8).id).toBe(secondSection.id)
+    expect(checkpointTargetSeconds(level, secondSection.start + 8)).toBe(
+      secondSection.targetSeconds,
+    )
   })
 })

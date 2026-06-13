@@ -1,21 +1,29 @@
 import { createInitialCarState, resetCar, updateCar } from './car.ts'
 import type { InputState } from './input.ts'
-import { createNeonRidgeLevel, nextCheckpoint, sampleTrack } from './track.ts'
+import {
+  checkpointTargetSeconds,
+  createNeonRidgeLevel,
+  currentRouteSection,
+  nextCheckpoint,
+  sampleTrack,
+} from './track.ts'
 import {
   createTelemetryState,
   resetTelemetry,
   updateTelemetry,
 } from './telemetry.ts'
 import type { CarState } from './car.ts'
-import type { LevelManifest, TrackSample } from './track.ts'
+import type { LevelManifest, RouteSection, TrackSample } from './track.ts'
 import type { TelemetryState } from './telemetry.ts'
 
 export interface RacingSnapshot {
   car: CarState
   level: LevelManifest
   track: TrackSample
+  currentSection: RouteSection
   telemetry: TelemetryState
   nextCheckpoint: number
+  checkpointTargetSeconds: number
 }
 
 export class RacingSim {
@@ -42,8 +50,10 @@ export class RacingSim {
       car: this.car,
       level: this.level,
       track: sampleTrack(this.level, this.car.distance),
+      currentSection: currentRouteSection(this.level, this.car.distance),
       telemetry: this.telemetry,
       nextCheckpoint: nextCheckpoint(this.level, this.car.distance),
+      checkpointTargetSeconds: checkpointTargetSeconds(this.level, this.car.distance),
     }
   }
 }

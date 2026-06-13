@@ -112,6 +112,7 @@ body {
   color: #fff8df;
   font-weight: 700;
   text-align: right;
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 760px) {
