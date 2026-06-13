@@ -78,6 +78,9 @@ test('score economy state is exposed in browser telemetry', async ({ page }) => 
   expect(state.styleCombo).toBeGreaterThan(0)
   expect(state.bestStyleCombo).toBeGreaterThanOrEqual(state.styleCombo)
   expect(state.score).toBe(state.checkpointScore + state.styleScore)
+  expect(state.trafficVehicles).toBeGreaterThan(4)
+  expect(state.trafficHits).toBe(0)
+  expect(state.nearestTrafficDistance).toBeGreaterThan(0)
   expect(state.calibration.completedLaps).toBe(1)
   expect(state.calibration.completedCheckpoints).toBe(4)
   expect(state.calibration.paceVerdict).toBe('on-pace')
@@ -88,6 +91,7 @@ test('score economy state is exposed in browser telemetry', async ({ page }) => 
   await expect(page.getByTestId('debug-panel')).toContainText('GEN')
   await expect(page.getByTestId('debug-panel')).toContainText('DRF')
   await expect(page.getByTestId('debug-panel')).toContainText('CHN')
+  await expect(page.getByTestId('hud-panel')).toContainText('TRF')
   await expect(page.getByTestId('title-strip')).toContainText('ARCADE')
 })
 

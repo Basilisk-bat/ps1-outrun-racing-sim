@@ -10,6 +10,8 @@ export interface TrackSegment {
 
 export type RoadsidePropKind = 'palm' | 'sign' | 'crystal'
 
+export type TrafficVehicleKind = 'coupe' | 'van' | 'truck'
+
 export interface RoadsideProp {
   id: string
   distance: number
@@ -17,6 +19,16 @@ export interface RoadsideProp {
   side: -1 | 1
   offset: number
   kind: RoadsidePropKind
+  color: string
+}
+
+export interface TrafficVehicle {
+  id: string
+  distance: number
+  sectionId: string
+  lane: -1 | 1
+  speed: number
+  kind: TrafficVehicleKind
   color: string
 }
 
@@ -58,6 +70,7 @@ export interface LevelManifest {
   sections: RouteSection[]
   segments: TrackSegment[]
   props: RoadsideProp[]
+  traffic: TrafficVehicle[]
 }
 
 export interface TrackSample {
@@ -213,6 +226,7 @@ export function createProceduralTrack(
     sections,
     segments,
     props: createRoadsideProps(sections, seed),
+    traffic: createTrafficVehicles(sections, seed),
   }
 }
 
@@ -425,6 +439,72 @@ function createRoadsideProps(sections: RouteSection[], seed: number): RoadsidePr
   }
 
   return props
+}
+
+function createTrafficVehicles(sections: RouteSection[], seed: number): TrafficVehicle[] {
+  const traffic: TrafficVehicle[] = []
+  const canonical = isCanonicalTrack(seed, sections.length)
+
+  for (let sectionIndex = 0; sectionIndex < sections.length; sectionIndex += 1) {
+    const section = sections[sectionIndex]
+    const sectionLength = section.end - section.start
+
+    for (let localIndex = 0; localIndex < 2; localIndex += 1) {
+      const baseDistance = section.start + sectionLength * (0.34 + localIndex * 0.34)
+      const jitter = canonical
+        ? 0
+        : seededRangeLocal(seed, sectionIndex, localIndex, 71, -12, 16)
+      const distance = roundGeometry(
+        clamp(baseDistance + jitter, section.start + 52, section.end - 42),
+      )
+      const lane = createTrafficLane(seed, canonical, sectionIndex, localIndex)
+      const speed = canonical
+        ? 30 + ((sectionIndex + localIndex) % 3) * 5
+        : seededRangeLocal(seed, sectionIndex, localIndex, 73, 26, 44)
+
+      traffic.push({
+        id: `${section.id}-traffic-${localIndex + 1}`,
+        distance,
+        sectionId: section.id,
+        lane,
+        speed: roundGeometry(speed),
+        kind: trafficKindForIndex(seed, canonical, sectionIndex, localIndex),
+        color: localIndex % 2 === 0 ? section.accentColor : section.primaryColor,
+      })
+    }
+  }
+
+  return traffic
+}
+
+function createTrafficLane(
+  seed: number,
+  canonical: boolean,
+  sectionIndex: number,
+  localIndex: number,
+): -1 | 1 {
+  if (canonical) {
+    return (sectionIndex + localIndex) % 2 === 0 ? -1 : 1
+  }
+
+  return seededUnit(seed, sectionIndex, localIndex, 79) < 0.5 ? -1 : 1
+}
+
+function trafficKindForIndex(
+  seed: number,
+  canonical: boolean,
+  sectionIndex: number,
+  localIndex: number,
+): TrafficVehicleKind {
+  if (canonical) {
+    return (['coupe', 'van', 'truck'] as const)[(sectionIndex + localIndex) % 3]
+  }
+
+  const roll = seededUnit(seed, sectionIndex, localIndex, 83)
+  if (roll < 0.5) {
+    return 'coupe'
+  }
+  return roll < 0.78 ? 'van' : 'truck'
 }
 
 function createPropSide(

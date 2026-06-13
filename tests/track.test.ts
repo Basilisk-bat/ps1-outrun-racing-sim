@@ -26,6 +26,7 @@ describe('track manifest', () => {
     expect(level.checkpoints).toEqual(level.sections.map((section) => section.checkpoint))
     expect(level.targetTimeSeconds).toBe(level.sections.at(-1)?.targetSeconds)
     expect(level.props.length).toBeGreaterThan(8)
+    expect(level.traffic.length).toBeGreaterThan(4)
   })
 
   it('preserves the canonical route identities while generating from section themes', () => {
@@ -59,6 +60,22 @@ describe('track manifest', () => {
     )
     expect(alternate.props.map((prop) => [prop.side, prop.kind, prop.offset])).not.toEqual(
       first.props.map((prop) => [prop.side, prop.kind, prop.offset]),
+    )
+    expect(alternate.traffic.map((vehicle) => [vehicle.lane, vehicle.kind, vehicle.speed])).not.toEqual(
+      first.traffic.map((vehicle) => [vehicle.lane, vehicle.kind, vehicle.speed]),
+    )
+  })
+
+  it('places deterministic traffic inside authored route sections', () => {
+    const level = createNeonRidgeLevel()
+    const sectionIds = new Set(level.sections.map((section) => section.id))
+
+    expect(level.traffic).toHaveLength(level.sections.length * 2)
+    expect(level.traffic.every((vehicle) => sectionIds.has(vehicle.sectionId))).toBe(true)
+    expect(level.traffic.every((vehicle) => Math.abs(vehicle.lane) === 1)).toBe(true)
+    expect(level.traffic.every((vehicle) => vehicle.speed >= 26 && vehicle.speed <= 44)).toBe(true)
+    expect(level.traffic.map((vehicle) => vehicle.distance)).toEqual(
+      [...level.traffic.map((vehicle) => vehicle.distance)].sort((a, b) => a - b),
     )
   })
 

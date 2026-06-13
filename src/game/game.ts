@@ -24,6 +24,10 @@ declare global {
       styleRank: string
       checkpointGrade: string | null
       checkpointDelta: number | null
+      trafficVehicles: number
+      trafficHits: number
+      nearestTrafficDistance: number | null
+      nearestTrafficLane: number | null
       difficultyId: string
       difficultyTitle: string
       generator: string
@@ -70,6 +74,10 @@ export function bootRacingGame(host: HTMLElement): void {
       styleRank: state.telemetry.styleRank,
       checkpointGrade: state.telemetry.lastCheckpoint?.grade ?? null,
       checkpointDelta: state.telemetry.lastCheckpoint?.deltaSeconds ?? null,
+      trafficVehicles: state.traffic.vehicleCount,
+      trafficHits: state.traffic.hitCount,
+      nearestTrafficDistance: state.traffic.nearest?.distanceAhead ?? null,
+      nearestTrafficLane: state.traffic.nearest?.lane ?? null,
       difficultyId: state.level.difficulty.id,
       difficultyTitle: state.level.difficulty.title,
       generator: state.level.generator,

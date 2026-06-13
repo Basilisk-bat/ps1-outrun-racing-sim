@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { RacingSim } from '../src/game/sim.ts'
+import { trafficVehiclePose } from '../src/game/traffic.ts'
+import type { InputState } from '../src/game/input.ts'
+
+const neutralInput: InputState = {
+  accelerate: false,
+  brake: false,
+  steer: 0,
+  reset: false,
+}
 
 describe('racing sim snapshots', () => {
   it('reports cumulative checkpoint target time after lap rollover', () => {
@@ -11,5 +20,40 @@ describe('racing sim snapshots', () => {
     sim.telemetry.currentLap = 1
 
     expect(sim.snapshot().checkpointTargetSeconds).toBe(firstCheckpointTarget + finishTarget)
+  })
+
+  it('resolves deterministic traffic contacts through collision telemetry', () => {
+    const sim = new RacingSim()
+    const vehicle = sim.level.traffic[0]
+    const pose = trafficVehiclePose(sim.level, vehicle, vehicle.distance - 1, 0)
+
+    sim.car.distance = vehicle.distance - 1
+    sim.car.lateral = pose.laneLateral
+    sim.car.speed = 92
+
+    const snapshot = sim.step(neutralInput, 1 / 60)
+
+    expect(snapshot.car.collisionCount).toBe(1)
+    expect(snapshot.car.speed).toBeLessThan(92)
+    expect(snapshot.traffic.hitCount).toBe(1)
+    expect(snapshot.traffic.lastHitVehicleId).toBe(vehicle.id)
+    expect(snapshot.telemetry.events.at(-1)?.type).toBe('collision')
+    expect(snapshot.telemetry.events.at(-1)?.details).toContain(vehicle.id)
+
+    const reset = sim.reset()
+    expect(reset.traffic.hitCount).toBe(0)
+    expect(reset.traffic.lastHitVehicleId).toBeNull()
+  })
+
+  it('does not let wrapped traffic hit an idle car from behind', () => {
+    const sim = new RacingSim('rival', { seed: 90210 })
+
+    for (let frame = 0; frame < 60 * 30; frame += 1) {
+      sim.step(neutralInput, 1 / 60)
+    }
+
+    expect(sim.car.speed).toBe(0)
+    expect(sim.car.collisionCount).toBe(0)
+    expect(sim.traffic.hitCount).toBe(0)
   })
 })

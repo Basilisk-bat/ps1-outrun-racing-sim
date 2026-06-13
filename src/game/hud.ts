@@ -16,6 +16,7 @@ export function createHud(host: HTMLElement): Hud {
       ${row('SEC', 'section')}
       ${row('GRD', 'grade')}
       ${row('STY', 'style')}
+      ${row('TRF', 'traffic')}
       ${row('HIT', 'collisions')}
     </section>
     <section class="debug-panel" data-testid="debug-panel" aria-label="Engine debug">
@@ -49,6 +50,13 @@ export function createHud(host: HTMLElement): Hud {
       set(values, 'section', snapshot.currentSection.title.toUpperCase())
       set(values, 'grade', snapshot.telemetry.lastCheckpoint?.grade.toUpperCase() ?? 'READY')
       set(values, 'style', snapshot.telemetry.styleRank.toUpperCase())
+      set(
+        values,
+        'traffic',
+        snapshot.traffic.nearest
+          ? `${Math.round(snapshot.traffic.nearest.distanceAhead)} M`
+          : 'CLEAR',
+      )
       set(values, 'collisions', `${snapshot.car.collisionCount}`)
       set(values, 'seed', `${snapshot.level.proceduralSeed}`)
       set(values, 'topSpeed', `${Math.round(snapshot.telemetry.topSpeed)} KMH`)

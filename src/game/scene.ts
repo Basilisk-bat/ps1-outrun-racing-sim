@@ -1,7 +1,8 @@
 import * as THREE from 'three'
 import type { RacingSnapshot } from './sim.ts'
-import type { LevelManifest, RoadsideProp } from './track.ts'
+import type { LevelManifest, RoadsideProp, TrafficVehicle } from './track.ts'
 import { sampleTrack } from './track.ts'
+import { trafficVehiclePose } from './traffic.ts'
 
 export interface SceneRenderer {
   domElement: HTMLCanvasElement
@@ -44,6 +45,8 @@ export function createSceneRenderer(
   scene.add(createRoad(level))
   scene.add(createStripes(level))
   scene.add(createProps(level))
+  const traffic = createTrafficMeshes(level)
+  scene.add(traffic.group)
 
   const car = createPlayerCar()
   scene.add(car)
@@ -64,6 +67,7 @@ export function createSceneRenderer(
 
     car.position.set(carX, carY, carZ)
     car.rotation.set(0, snapshot.car.heading, -snapshot.car.drift * 0.2)
+    updateTrafficMeshes(traffic.entries, snapshot)
 
     const chaseSample = sampleTrack(snapshot.level, snapshot.car.distance - CAMERA_BACK)
     const lookSample = sampleTrack(snapshot.level, snapshot.car.distance + CAMERA_LOOK_AHEAD)
@@ -205,6 +209,94 @@ function createProps(level: LevelManifest): THREE.Group {
   }
 
   return group
+}
+
+interface TrafficMeshEntry {
+  vehicle: TrafficVehicle
+  mesh: THREE.Group
+}
+
+function createTrafficMeshes(level: LevelManifest): {
+  group: THREE.Group
+  entries: TrafficMeshEntry[]
+} {
+  const group = new THREE.Group()
+  const entries = level.traffic.map((vehicle) => {
+    const mesh = createTrafficVehicleMesh(vehicle)
+    group.add(mesh)
+    return { vehicle, mesh }
+  })
+
+  return { group, entries }
+}
+
+function updateTrafficMeshes(entries: TrafficMeshEntry[], snapshot: RacingSnapshot): void {
+  for (const entry of entries) {
+    const pose = trafficVehiclePose(
+      snapshot.level,
+      entry.vehicle,
+      snapshot.car.distance,
+      snapshot.telemetry.elapsed,
+    )
+    const sample = sampleTrack(snapshot.level, pose.absoluteDistance)
+    entry.mesh.visible = pose.distanceAhead < 540
+    entry.mesh.position.set(
+      sample.centerX + pose.laneLateral,
+      sample.elevation + 0.6,
+      -pose.absoluteDistance,
+    )
+    entry.mesh.rotation.set(0, sample.curve * 0.42, entry.vehicle.lane * 0.025)
+  }
+}
+
+function createTrafficVehicleMesh(vehicle: TrafficVehicle): THREE.Group {
+  const group = new THREE.Group()
+  const bodyDimensions = trafficBodyDimensions(vehicle.kind)
+  const bodyMaterial = new THREE.MeshLambertMaterial({
+    color: vehicle.color,
+    flatShading: true,
+  })
+  const glassMaterial = new THREE.MeshLambertMaterial({
+    color: 0xb6fcff,
+    flatShading: true,
+  })
+  const shadowMaterial = new THREE.MeshLambertMaterial({
+    color: 0x171321,
+    flatShading: true,
+  })
+  const body = new THREE.Mesh(
+    new THREE.BoxGeometry(bodyDimensions.width, bodyDimensions.height, bodyDimensions.length),
+    bodyMaterial,
+  )
+  const cabin = new THREE.Mesh(
+    new THREE.BoxGeometry(bodyDimensions.width * 0.68, bodyDimensions.height * 0.72, bodyDimensions.length * 0.38),
+    glassMaterial,
+  )
+  const rear = new THREE.Mesh(
+    new THREE.BoxGeometry(bodyDimensions.width * 0.78, 0.22, 0.24),
+    shadowMaterial,
+  )
+
+  body.position.y = bodyDimensions.height * 0.5
+  cabin.position.set(0, bodyDimensions.height + 0.22, -bodyDimensions.length * 0.1)
+  rear.position.set(0, bodyDimensions.height * 0.66, bodyDimensions.length * 0.52)
+  group.add(body, cabin, rear)
+
+  return group
+}
+
+function trafficBodyDimensions(kind: TrafficVehicle['kind']): {
+  width: number
+  height: number
+  length: number
+} {
+  if (kind === 'truck') {
+    return { width: 3.2, height: 1.45, length: 6.2 }
+  }
+  if (kind === 'van') {
+    return { width: 2.9, height: 1.35, length: 5.2 }
+  }
+  return { width: 2.55, height: 1.05, length: 4.6 }
 }
 
 function createPropMesh(level: LevelManifest, prop: RoadsideProp): THREE.Object3D {

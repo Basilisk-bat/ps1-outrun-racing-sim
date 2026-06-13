@@ -100,6 +100,7 @@ export function updateTelemetry(
   car: CarState,
   dt: number,
   collided: boolean,
+  collisionDetails?: string,
 ): void {
   telemetry.elapsed += dt
   telemetry.topSpeed = Math.max(telemetry.topSpeed, car.speed)
@@ -112,7 +113,7 @@ export function updateTelemetry(
   }
 
   if (collided) {
-    pushTelemetryEvent(telemetry, car, 'collision')
+    pushTelemetryEvent(telemetry, car, 'collision', collisionDetails)
   }
 
   const styleAward = updateStyleScoring(telemetry, car, dt, collided)

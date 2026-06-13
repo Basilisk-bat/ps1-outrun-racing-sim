@@ -13,6 +13,12 @@ import {
   resetTelemetry,
   updateTelemetry,
 } from './telemetry.ts'
+import {
+  createTrafficRuntimeState,
+  createTrafficSnapshot,
+  resetTrafficRuntimeState,
+  resolveTrafficContact,
+} from './traffic.ts'
 import type { CarState } from './car.ts'
 import type {
   LevelManifest,
@@ -22,6 +28,7 @@ import type {
   TrackSample,
 } from './track.ts'
 import type { TelemetryState } from './telemetry.ts'
+import type { TrafficRuntimeState, TrafficSnapshot } from './traffic.ts'
 
 export interface RacingSnapshot {
   car: CarState
@@ -29,6 +36,7 @@ export interface RacingSnapshot {
   track: TrackSample
   currentSection: RouteSection
   telemetry: TelemetryState
+  traffic: TrafficSnapshot
   nextCheckpoint: number
   checkpointTargetSeconds: number
 }
@@ -37,6 +45,7 @@ export class RacingSim {
   readonly level: LevelManifest
   readonly car = createInitialCarState()
   readonly telemetry = createTelemetryState()
+  readonly traffic: TrafficRuntimeState = createTrafficRuntimeState()
 
   constructor(
     difficultyId: RouteDifficultyId = DEFAULT_ROUTE_DIFFICULTY,
@@ -47,8 +56,22 @@ export class RacingSim {
 
   step(input: InputState, dt: number): RacingSnapshot {
     const track = sampleTrack(this.level, this.car.distance)
-    const result = updateCar(this.car, input, track, dt)
-    updateTelemetry(this.telemetry, this.level, this.car, dt, result.collided)
+    const roadContact = updateCar(this.car, input, track, dt)
+    const trafficContact = resolveTrafficContact(
+      this.traffic,
+      this.level,
+      this.car,
+      this.telemetry.elapsed + dt,
+    )
+    const collided = roadContact.collided || trafficContact.collided
+    updateTelemetry(
+      this.telemetry,
+      this.level,
+      this.car,
+      dt,
+      collided,
+      trafficContact.vehicle ? `TRAFFIC ${trafficContact.vehicle.id}` : undefined,
+    )
 
     return this.snapshot()
   }
@@ -56,6 +79,7 @@ export class RacingSim {
   reset(): RacingSnapshot {
     resetCar(this.car)
     resetTelemetry(this.telemetry, this.car)
+    resetTrafficRuntimeState(this.traffic)
     return this.snapshot()
   }
 
@@ -66,6 +90,7 @@ export class RacingSim {
       track: sampleTrack(this.level, this.car.distance),
       currentSection: currentRouteSection(this.level, this.car.distance),
       telemetry: this.telemetry,
+      traffic: createTrafficSnapshot(this.level, this.car, this.telemetry.elapsed, this.traffic),
       nextCheckpoint: nextCheckpoint(this.level, this.car.distance),
       checkpointTargetSeconds: cumulativeCheckpointTargetSeconds(
         this.level,
