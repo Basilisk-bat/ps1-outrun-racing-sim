@@ -94,6 +94,9 @@ test('drift score economy state is exposed in browser telemetry', async ({ page 
   expect(state.driftCombo).toBeGreaterThan(0)
   expect(state.bestDriftCombo).toBeGreaterThanOrEqual(state.driftCombo)
   expect(state.score).toBe(state.checkpointScore + state.styleScore)
+  expect(state.timeRemaining).toBeGreaterThan(0)
+  expect(state.raceExpired).toBe(false)
+  expect(state.lastArcadeBanner.length).toBeGreaterThan(0)
   expect(state.boostMeter).toBeGreaterThan(0)
   expect(state.trafficVehicles).toBeGreaterThan(4)
   expect(state.trafficHits).toBe(0)
@@ -103,9 +106,12 @@ test('drift score economy state is exposed in browser telemetry', async ({ page 
   await expect(page.getByTestId('hud-panel')).toContainText('COM')
   await expect(page.getByTestId('hud-panel')).toContainText('BST')
   await expect(page.getByTestId('hud-panel')).toContainText('NIT')
+  await expect(page.getByTestId('hud-panel')).toContainText('TIM')
   await expect(page.getByTestId('debug-panel')).toContainText('AWD')
+  await expect(page.getByTestId('debug-panel')).toContainText('EXT')
   await expect(page.getByTestId('debug-panel')).toContainText('RCV')
   await expect(page.getByTestId('hud-panel')).toContainText('TRF')
+  await expect(page.getByTestId('arcade-banner')).toBeVisible()
   await expect(page.getByTestId('title-strip')).toContainText('DRIFT')
 })
 
@@ -173,23 +179,30 @@ test('hud panels are framed without overlapping each other', async ({ page }) =>
 
   const hud = await page.getByTestId('hud-panel').boundingBox()
   const debug = await page.getByTestId('debug-panel').boundingBox()
+  const banner = await page.getByTestId('arcade-banner').boundingBox()
   const title = await page.getByTestId('title-strip').boundingBox()
   const viewport = page.viewportSize()
 
   expect(hud).not.toBeNull()
   expect(debug).not.toBeNull()
+  expect(banner).not.toBeNull()
   expect(title).not.toBeNull()
   expect(viewport).not.toBeNull()
 
-  if (!hud || !debug || !title || !viewport) {
+  if (!hud || !debug || !banner || !title || !viewport) {
     return
   }
 
   expect(overlaps(hud, debug)).toBe(false)
+  expect(overlaps(hud, banner)).toBe(false)
   expect(overlaps(hud, title)).toBe(false)
+  expect(overlaps(debug, banner)).toBe(false)
   expect(overlaps(debug, title)).toBe(false)
+  expect(overlaps(banner, title)).toBe(false)
   expect(hud.x).toBeGreaterThanOrEqual(0)
   expect(debug.x + debug.width).toBeLessThanOrEqual(viewport.width)
+  expect(banner.x).toBeGreaterThanOrEqual(0)
+  expect(banner.x + banner.width).toBeLessThanOrEqual(viewport.width)
   expect(title.y + title.height).toBeLessThanOrEqual(viewport.height)
 })
 

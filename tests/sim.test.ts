@@ -65,6 +65,7 @@ describe('racing sim snapshots', () => {
     expect(snapshot.car.boostMeter).toBeGreaterThan(0)
     expect(snapshot.telemetry.styleRank).toBe('near-miss')
     expect(snapshot.telemetry.lastStyleAward?.kind).toBe('near-miss')
+    expect(snapshot.telemetry.lastArcadeBanner).toBe('NEAR MISS')
     expect(snapshot.telemetry.events.at(-1)?.type).toBe('near-miss')
   })
 

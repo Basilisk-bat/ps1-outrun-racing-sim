@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { createInitialCarState } from '../src/game/car.ts'
 import { createNeonRidgeLevel } from '../src/game/track.ts'
 import {
+  ARCADE_START_TIME_SECONDS,
   createTelemetryState,
   gradeCheckpoint,
   pushTelemetryEvent,
@@ -45,7 +46,29 @@ describe('telemetry', () => {
     expect(telemetry.checkpointScore).toBe(telemetry.lastCheckpoint?.score)
     expect(telemetry.styleScore).toBe(0)
     expect(telemetry.score).toBe(telemetry.lastCheckpoint?.score)
+    expect(telemetry.timeRemaining).toBeCloseTo(ARCADE_START_TIME_SECONDS - dt + 7)
+    expect(telemetry.timeExtendedSeconds).toBe(7)
+    expect(telemetry.lastArcadeBanner).toBe('GOLD CHECKPOINT +7s')
+    expect(telemetry.events.at(-2)?.type).toBe('time-extend')
     expect(telemetry.events.at(-1)?.details).toContain('GOLD')
+  })
+
+  it('runs a cabinet countdown and emits a bounded time-over state', () => {
+    const level = createNeonRidgeLevel()
+    const car = createInitialCarState()
+    const telemetry = createTelemetryState()
+
+    expect(telemetry.timeRemaining).toBe(ARCADE_START_TIME_SECONDS)
+    expect(telemetry.lastArcadeBanner).toBe('ROLLING START')
+
+    telemetry.timeRemaining = 0.01
+    updateTelemetry(telemetry, level, car, 0.02, false)
+    updateTelemetry(telemetry, level, car, 0.02, false)
+
+    expect(telemetry.timeRemaining).toBe(0)
+    expect(telemetry.raceExpired).toBe(true)
+    expect(telemetry.lastArcadeBanner).toBe('TIME OVER')
+    expect(telemetry.events.filter((event) => event.type === 'time-over')).toHaveLength(1)
   })
 
   it('adds deterministic style points for controlled drift and clean driving', () => {
@@ -202,6 +225,10 @@ describe('telemetry', () => {
       multiplier: 1.1,
     }
     telemetry.score = 800
+    telemetry.timeRemaining = 3
+    telemetry.timeExtendedSeconds = 9
+    telemetry.raceExpired = true
+    telemetry.lastArcadeBanner = 'TIME OVER'
     telemetry.checkpointSplits = [
       {
         checkpointIndex: 0,
@@ -236,6 +263,10 @@ describe('telemetry', () => {
     expect(telemetry.styleAccumulator).toBe(0)
     expect(telemetry.lastStyleAward).toBeUndefined()
     expect(telemetry.score).toBe(0)
+    expect(telemetry.timeRemaining).toBe(ARCADE_START_TIME_SECONDS)
+    expect(telemetry.timeExtendedSeconds).toBe(0)
+    expect(telemetry.raceExpired).toBe(false)
+    expect(telemetry.lastArcadeBanner).toBe('ROLLING START')
     expect(telemetry.checkpointSplits).toEqual([])
     expect(telemetry.lastCheckpoint).toBeUndefined()
     expect(telemetry.events.at(-1)?.type).toBe('reset')

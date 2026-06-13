@@ -13,6 +13,7 @@ export function createHud(host: HTMLElement): Hud {
       ${row('SPD', 'speed')}
       ${row('DST', 'distance')}
       ${row('SEC', 'section')}
+      ${row('TIM', 'timeRemaining')}
       ${row('SCR', 'score')}
       ${row('DRF', 'styleScore')}
       ${row('COM', 'styleCombo')}
@@ -26,11 +27,13 @@ export function createHud(host: HTMLElement): Hud {
       ${row('STY', 'style')}
       ${row('TOP', 'topSpeed')}
       ${row('AWD', 'award')}
+      ${row('EXT', 'timeExtended')}
       ${row('RCV', 'recovery')}
       ${row('OFF', 'offroad')}
       ${row('LAT', 'lateral')}
       ${row('RUN', 'elapsed')}
     </section>
+    <div class="arcade-banner" data-testid="arcade-banner">ROLLING START</div>
     <div class="title-strip" data-testid="title-strip">DRIFT MILESTONE 02</div>
   `
   host.append(root)
@@ -40,6 +43,7 @@ export function createHud(host: HTMLElement): Hud {
     values.set(element.dataset.hudValue ?? '', element)
   })
   const titleStrip = root.querySelector<HTMLElement>('[data-testid="title-strip"]')
+  const arcadeBanner = root.querySelector<HTMLElement>('[data-testid="arcade-banner"]')
 
   return {
     root,
@@ -47,6 +51,13 @@ export function createHud(host: HTMLElement): Hud {
       set(values, 'speed', `${Math.round(snapshot.car.speed).toString().padStart(3, '0')} KMH`)
       set(values, 'distance', `${Math.floor(snapshot.car.distance)} M`)
       set(values, 'section', snapshot.currentSection.title.toUpperCase())
+      set(
+        values,
+        'timeRemaining',
+        snapshot.telemetry.raceExpired
+          ? 'TIME OVER'
+          : `${Math.ceil(snapshot.telemetry.timeRemaining).toString().padStart(2, '0')} S`,
+      )
       set(values, 'score', `${snapshot.telemetry.score}`)
       set(values, 'styleScore', `${snapshot.telemetry.styleScore}`)
       set(values, 'styleCombo', `${snapshot.telemetry.styleCombo}`)
@@ -74,6 +85,7 @@ export function createHud(host: HTMLElement): Hud {
           ? `+${snapshot.telemetry.lastStyleAward.points}`
           : 'READY',
       )
+      set(values, 'timeExtended', `+${snapshot.telemetry.timeExtendedSeconds.toFixed(1)} S`)
       set(
         values,
         'recovery',
@@ -90,6 +102,9 @@ export function createHud(host: HTMLElement): Hud {
           `${snapshot.level.difficulty.title.toUpperCase()} DRIFT`,
           snapshot.currentSection.title,
         ].join(' / ')
+      }
+      if (arcadeBanner) {
+        arcadeBanner.textContent = snapshot.telemetry.lastArcadeBanner
       }
     },
   }

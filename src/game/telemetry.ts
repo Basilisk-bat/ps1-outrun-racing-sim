@@ -4,12 +4,15 @@ import type { LevelManifest, RouteDifficultyProfile } from './track.ts'
 
 export type TelemetryEventType =
   | 'checkpoint'
+  | 'boost'
   | 'collision'
   | 'near-miss'
   | 'offroad'
   | 'reset'
   | 'lap'
   | 'style'
+  | 'time-extend'
+  | 'time-over'
 export type CheckpointGrade = 'gold' | 'silver' | 'bronze' | 'miss'
 export type StyleRank = 'neutral' | 'clean' | 'drift' | 'risk' | 'near-miss'
 
@@ -60,6 +63,10 @@ export interface TelemetryState {
   styleAccumulator: number
   lastStyleAward?: StyleAward
   score: number
+  timeRemaining: number
+  timeExtendedSeconds: number
+  raceExpired: boolean
+  lastArcadeBanner: string
   lastCheckpoint?: CheckpointSplit
   collisionCountAtLastCheckpoint: number
   offroadTimeAtLastCheckpoint: number
@@ -71,6 +78,13 @@ const SCORE_BY_GRADE: Record<CheckpointGrade, number> = {
   bronze: 520,
   miss: 250,
 }
+const TIME_EXTENSION_BY_GRADE: Record<CheckpointGrade, number> = {
+  gold: 7,
+  silver: 5,
+  bronze: 3,
+  miss: 1.5,
+}
+export const ARCADE_START_TIME_SECONDS = 42
 const DEFAULT_DIFFICULTY_PROFILE = ROUTE_DIFFICULTY_PROFILES.arcade
 
 export function createTelemetryState(): TelemetryState {
@@ -90,6 +104,10 @@ export function createTelemetryState(): TelemetryState {
     styleRank: 'neutral',
     styleAccumulator: 0,
     score: 0,
+    timeRemaining: ARCADE_START_TIME_SECONDS,
+    timeExtendedSeconds: 0,
+    raceExpired: false,
+    lastArcadeBanner: 'ROLLING START',
     collisionCountAtLastCheckpoint: 0,
     offroadTimeAtLastCheckpoint: 0,
   }
@@ -105,6 +123,9 @@ export function updateTelemetry(
   nearMissDetails?: string,
 ): void {
   telemetry.elapsed += dt
+  if (!telemetry.raceExpired) {
+    telemetry.timeRemaining = Math.max(0, telemetry.timeRemaining - dt)
+  }
   telemetry.topSpeed = Math.max(telemetry.topSpeed, car.speed)
 
   if (car.offroad) {
@@ -115,6 +136,7 @@ export function updateTelemetry(
   }
 
   if (collided) {
+    telemetry.lastArcadeBanner = 'RECOVER'
     pushTelemetryEvent(telemetry, car, 'collision', collisionDetails)
   }
 
@@ -134,7 +156,13 @@ export function updateTelemetry(
   if (nearMissDetails) {
     const nearMissPoints = 150 + Math.round(Math.min(80, car.speed * 0.45))
     applyStyleAward(telemetry, 'near-miss', nearMissPoints, 1.4)
+    telemetry.lastArcadeBanner = 'NEAR MISS'
     pushTelemetryEvent(telemetry, car, 'near-miss', `${nearMissDetails} +${nearMissPoints}`)
+  }
+
+  if (car.boostActive && shouldEmitSparseEvent(telemetry, 'boost', 1.15)) {
+    telemetry.lastArcadeBanner = 'BOOST'
+    pushTelemetryEvent(telemetry, car, 'boost', 'NITRO')
   }
 
   const checkpointIndex = telemetry.nextCheckpointIndex
@@ -148,6 +176,7 @@ export function updateTelemetry(
     telemetry.lastCheckpoint = split
     telemetry.collisionCountAtLastCheckpoint = car.collisionCount
     telemetry.offroadTimeAtLastCheckpoint = telemetry.offroadTime
+    extendArcadeTimer(telemetry, car, split)
     pushTelemetryEvent(
       telemetry,
       car,
@@ -157,6 +186,12 @@ export function updateTelemetry(
     telemetry.checkpointScore = split.cumulativeScore
     telemetry.score = telemetry.checkpointScore + telemetry.styleScore
     telemetry.nextCheckpointIndex += 1
+  }
+
+  if (!telemetry.raceExpired && telemetry.timeRemaining <= 0) {
+    telemetry.raceExpired = true
+    telemetry.lastArcadeBanner = 'TIME OVER'
+    pushTelemetryEvent(telemetry, car, 'time-over')
   }
 
   if (car.distance >= level.totalLength * (telemetry.currentLap + 1)) {
@@ -201,6 +236,10 @@ export function resetTelemetry(telemetry: TelemetryState, car: CarState): void {
   telemetry.styleRank = 'neutral'
   telemetry.styleAccumulator = 0
   telemetry.score = 0
+  telemetry.timeRemaining = ARCADE_START_TIME_SECONDS
+  telemetry.timeExtendedSeconds = 0
+  telemetry.raceExpired = false
+  telemetry.lastArcadeBanner = 'ROLLING START'
   delete telemetry.lastStyleAward
   delete telemetry.lastCheckpoint
   telemetry.collisionCountAtLastCheckpoint = 0
@@ -234,6 +273,18 @@ export function scoreCheckpoint(
   const latePenalty = Math.max(0, Math.round(deltaSeconds * difficulty.latePenaltyPerSecond))
   const controlPenalty = collisionPenalty * 75 + Math.round(offroadPenaltySeconds * 14)
   return Math.max(100, SCORE_BY_GRADE[grade] - latePenalty - controlPenalty)
+}
+
+function extendArcadeTimer(
+  telemetry: TelemetryState,
+  car: CarState,
+  split: CheckpointSplit,
+): void {
+  const extension = TIME_EXTENSION_BY_GRADE[split.grade]
+  telemetry.timeRemaining += extension
+  telemetry.timeExtendedSeconds += extension
+  telemetry.lastArcadeBanner = `${split.grade.toUpperCase()} CHECKPOINT +${formatTimeExtension(extension)}`
+  pushTelemetryEvent(telemetry, car, 'time-extend', `+${formatTimeExtension(extension)}`)
 }
 
 function createCheckpointSplit(
@@ -366,6 +417,10 @@ function shouldEmitSparseEvent(
 function formatSigned(value: number): string {
   const sign = value > 0 ? '+' : ''
   return `${sign}${value.toFixed(1)}`
+}
+
+function formatTimeExtension(value: number): string {
+  return Number.isInteger(value) ? `${value}s` : `${value.toFixed(1)}s`
 }
 
 function clamp(value: number, min: number, max: number): number {

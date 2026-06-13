@@ -72,10 +72,11 @@ describe('car physics', () => {
   it('charges boost from controlled drift and spends it through boost input', () => {
     const car = createInitialCarState()
     const boostPad: TrackSample = { ...flatTrack, roadWidth: 48 }
-    car.speed = 84
 
-    for (let frame = 0; frame < 90; frame += 1) {
-      updateCar(car, { ...neutralInput, accelerate: true, brake: true, steer: 1 }, boostPad, 1 / 60)
+    for (let frame = 0; frame < 45; frame += 1) {
+      car.speed = 92
+      car.lateralVelocity = 6
+      updateCar(car, neutralInput, boostPad, 1 / 60)
     }
 
     const chargedBoost = car.boostMeter

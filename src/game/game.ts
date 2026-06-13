@@ -1,3 +1,4 @@
+import { createArcadeAudio } from './audio.ts'
 import { createHud } from './hud.ts'
 import { resolveRouteDifficulty } from './difficulty.ts'
 import { createInputController } from './input.ts'
@@ -35,6 +36,10 @@ declare global {
       lastNearMissVehicleId: string | null
       nearestTrafficDistance: number | null
       nearestTrafficLane: number | null
+      timeRemaining: number
+      timeExtendedSeconds: number
+      raceExpired: boolean
+      lastArcadeBanner: string
       difficultyId: string
       difficultyTitle: string
       generator: string
@@ -58,6 +63,7 @@ export function bootRacingGame(host: HTMLElement): void {
   const input = createInputController(window)
   const renderer = createSceneRenderer(shell, sim.level)
   const hud = createHud(shell)
+  const audio = createArcadeAudio(window)
   const calibration = runCalibrationTrace({ difficultyId }).summary
   let accumulator = 0
   let lastTime = performance.now()
@@ -90,6 +96,10 @@ export function bootRacingGame(host: HTMLElement): void {
       lastNearMissVehicleId: state.traffic.lastNearMissVehicleId,
       nearestTrafficDistance: state.traffic.nearest?.distanceAhead ?? null,
       nearestTrafficLane: state.traffic.nearest?.lane ?? null,
+      timeRemaining: state.telemetry.timeRemaining,
+      timeExtendedSeconds: state.telemetry.timeExtendedSeconds,
+      raceExpired: state.telemetry.raceExpired,
+      lastArcadeBanner: state.telemetry.lastArcadeBanner,
       difficultyId: state.level.difficulty.id,
       difficultyTitle: state.level.difficulty.title,
       generator: state.level.generator,
@@ -117,6 +127,7 @@ export function bootRacingGame(host: HTMLElement): void {
 
     renderer.render(snapshot)
     hud.update(snapshot)
+    audio.update(snapshot)
     publishState(snapshot)
     window.__RPK_RACING_READY__ = true
     animationFrame = requestAnimationFrame(frame)
@@ -133,6 +144,7 @@ export function bootRacingGame(host: HTMLElement): void {
     cancelAnimationFrame(animationFrame)
     window.removeEventListener('resize', onResize)
     input.dispose()
+    audio.dispose()
     renderer.dispose()
     hud.root.remove()
   })
