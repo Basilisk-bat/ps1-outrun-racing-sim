@@ -1,4 +1,5 @@
 import { createHud } from './hud.ts'
+import { resolveRouteDifficulty } from './difficulty.ts'
 import { createInputController } from './input.ts'
 import { createSceneRenderer } from './scene.ts'
 import { runCalibrationTrace } from './calibration.ts'
@@ -40,11 +41,12 @@ export function bootRacingGame(host: HTMLElement): void {
   shell.dataset.testid = 'game-shell'
   host.append(shell)
 
-  const sim = new RacingSim()
+  const difficultyId = resolveRouteDifficulty(window.location.search)
+  const sim = new RacingSim(difficultyId)
   const input = createInputController(window)
   const renderer = createSceneRenderer(shell, sim.level)
   const hud = createHud(shell)
-  const calibration = runCalibrationTrace().summary
+  const calibration = runCalibrationTrace({ difficultyId }).summary
   let accumulator = 0
   let lastTime = performance.now()
   let animationFrame = 0

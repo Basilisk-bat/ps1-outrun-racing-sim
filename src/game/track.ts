@@ -68,7 +68,7 @@ export interface TrackSample {
 
 const DEFAULT_SEGMENT_LENGTH = 64
 const DEFAULT_ROAD_WIDTH = 16
-const DEFAULT_ROUTE_DIFFICULTY: RouteDifficultyId = 'arcade'
+export const DEFAULT_ROUTE_DIFFICULTY: RouteDifficultyId = 'arcade'
 
 export const ROUTE_DIFFICULTY_PROFILES: Record<
   RouteDifficultyId,

@@ -13,7 +13,12 @@ import {
   updateTelemetry,
 } from './telemetry.ts'
 import type { CarState } from './car.ts'
-import type { LevelManifest, RouteSection, TrackSample } from './track.ts'
+import type {
+  LevelManifest,
+  RouteDifficultyId,
+  RouteSection,
+  TrackSample,
+} from './track.ts'
 import type { TelemetryState } from './telemetry.ts'
 
 export interface RacingSnapshot {
@@ -27,9 +32,13 @@ export interface RacingSnapshot {
 }
 
 export class RacingSim {
-  readonly level = createNeonRidgeLevel()
+  readonly level: LevelManifest
   readonly car = createInitialCarState()
   readonly telemetry = createTelemetryState()
+
+  constructor(difficultyId?: RouteDifficultyId) {
+    this.level = createNeonRidgeLevel(difficultyId)
+  }
 
   step(input: InputState, dt: number): RacingSnapshot {
     const track = sampleTrack(this.level, this.car.distance)

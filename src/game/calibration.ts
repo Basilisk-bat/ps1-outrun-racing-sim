@@ -1,6 +1,7 @@
 import type { InputState } from './input.ts'
 import { RacingSim } from './sim.ts'
 import type { RacingSnapshot } from './sim.ts'
+import type { RouteDifficultyId } from './track.ts'
 import type { CheckpointGrade, CheckpointSplit } from './telemetry.ts'
 
 export type PaceVerdict = 'too-fast' | 'on-pace' | 'too-slow' | 'incomplete'
@@ -43,6 +44,7 @@ export interface CalibrationTrace {
 }
 
 export interface CalibrationTraceOptions {
+  difficultyId?: RouteDifficultyId
   maxSeconds?: number
   fixedDt?: number
   sampleEverySeconds?: number
@@ -61,7 +63,7 @@ export function runCalibrationTrace(
   const fixedDt = options.fixedDt ?? DEFAULT_FIXED_DT
   const sampleEverySeconds = options.sampleEverySeconds ?? DEFAULT_SAMPLE_EVERY_SECONDS
   const targetSpeed = options.targetSpeed ?? DEFAULT_TARGET_SPEED
-  const sim = new RacingSim()
+  const sim = new RacingSim(options.difficultyId)
   const samples: TraceSample[] = []
   let nextSampleAt = 0
   let snapshot = sim.snapshot()

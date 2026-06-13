@@ -90,6 +90,18 @@ test('score economy state is exposed in browser telemetry', async ({ page }) => 
   await expect(page.getByTestId('title-strip')).toContainText('ARCADE')
 })
 
+test('difficulty query parameter selects the playable route profile', async ({ page }) => {
+  await page.goto('/?difficulty=rival')
+  await page.waitForFunction(() => window.__RPK_RACING_READY__ === true)
+
+  const state = await readState(page)
+  expect(state.difficultyId).toBe('rival')
+  expect(state.difficultyTitle).toBe('Rival')
+  expect(state.calibration.completedLaps).toBe(1)
+
+  await expect(page.getByTestId('title-strip')).toContainText('RIVAL')
+})
+
 test('hud panels are framed without overlapping each other', async ({ page }) => {
   await page.goto('/')
   await page.waitForFunction(() => window.__RPK_RACING_READY__ === true)

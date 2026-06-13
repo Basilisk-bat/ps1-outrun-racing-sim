@@ -22,6 +22,8 @@ Play in browser: https://basilisk-bat.github.io/ps1-outrun-racing-sim/
 - Steer: `ArrowLeft` / `ArrowRight` or `A` / `D`
 - Reset car state: `R`
 
+Difficulty profiles can be loaded with `?difficulty=touring`, `?difficulty=arcade`, or `?difficulty=rival`. Arcade is the default.
+
 ## Development
 
 ```powershell
