@@ -284,20 +284,20 @@ function updateStyleScoring(
   telemetry.cleanDrivingSeconds += dt
 
   const driftIntensity = Math.abs(car.drift)
-  const speedRatio = clamp(car.speed / 110, 0, 1.25)
-  const controlledDrift = car.speed >= 52 && driftIntensity >= 0.24
-  const cleanLine = car.speed >= 70 && Math.abs(car.lateral) <= 4.6
-  const comboMultiplier = 1 + Math.min(1.25, telemetry.styleCombo / 900)
+  const speedRatio = clamp(car.speed / 104, 0, 1.35)
+  const controlledDrift = car.speed >= 38 && driftIntensity >= 0.18
+  const cleanLine = car.speed >= 74 && Math.abs(car.lateral) <= 5.2
+  const comboMultiplier = 1 + Math.min(1.6, telemetry.styleCombo / 760)
 
   let pointsPerSecond = 0
   let kind: StyleAward['kind'] | undefined
 
   if (controlledDrift) {
-    pointsPerSecond = (26 + driftIntensity * 88) * speedRatio
+    pointsPerSecond = (46 + driftIntensity * 142) * speedRatio
     telemetry.styleRank = 'drift'
     kind = 'drift'
   } else if (cleanLine) {
-    pointsPerSecond = Math.min(34, 10 + telemetry.cleanDrivingSeconds * 3.2) * speedRatio
+    pointsPerSecond = Math.min(22, 8 + telemetry.cleanDrivingSeconds * 2.4) * speedRatio
     telemetry.styleRank = 'clean'
     kind = 'clean'
   } else {

@@ -1,5 +1,5 @@
 import { createHud } from './hud.ts'
-import { resolveRouteDifficulty, resolveTrackSeed } from './difficulty.ts'
+import { resolveRouteDifficulty } from './difficulty.ts'
 import { createInputController } from './input.ts'
 import { createSceneRenderer } from './scene.ts'
 import { runCalibrationTrace } from './calibration.ts'
@@ -16,14 +16,16 @@ declare global {
       lateral: number
       collisions: number
       offroad: boolean
+      gameMode: 'drift'
       score: number
       checkpointScore: number
+      driftScore: number
+      driftCombo: number
+      bestDriftCombo: number
       styleScore: number
       styleCombo: number
       bestStyleCombo: number
       styleRank: string
-      checkpointGrade: string | null
-      checkpointDelta: number | null
       trafficVehicles: number
       trafficHits: number
       nearestTrafficDistance: number | null
@@ -31,7 +33,6 @@ declare global {
       difficultyId: string
       difficultyTitle: string
       generator: string
-      trackSeed: number
       calibration: CalibrationSummary
     }
   }
@@ -48,12 +49,11 @@ export function bootRacingGame(host: HTMLElement): void {
   host.append(shell)
 
   const difficultyId = resolveRouteDifficulty(window.location.search)
-  const trackSeed = resolveTrackSeed(window.location.search)
-  const sim = new RacingSim(difficultyId, { seed: trackSeed })
+  const sim = new RacingSim(difficultyId)
   const input = createInputController(window)
   const renderer = createSceneRenderer(shell, sim.level)
   const hud = createHud(shell)
-  const calibration = runCalibrationTrace({ difficultyId, seed: trackSeed }).summary
+  const calibration = runCalibrationTrace({ difficultyId }).summary
   let accumulator = 0
   let lastTime = performance.now()
   let animationFrame = 0
@@ -66,14 +66,16 @@ export function bootRacingGame(host: HTMLElement): void {
       lateral: state.car.lateral,
       collisions: state.car.collisionCount,
       offroad: state.car.offroad,
+      gameMode: 'drift',
       score: state.telemetry.score,
       checkpointScore: state.telemetry.checkpointScore,
+      driftScore: state.telemetry.styleScore,
+      driftCombo: state.telemetry.styleCombo,
+      bestDriftCombo: state.telemetry.bestStyleCombo,
       styleScore: state.telemetry.styleScore,
       styleCombo: state.telemetry.styleCombo,
       bestStyleCombo: state.telemetry.bestStyleCombo,
       styleRank: state.telemetry.styleRank,
-      checkpointGrade: state.telemetry.lastCheckpoint?.grade ?? null,
-      checkpointDelta: state.telemetry.lastCheckpoint?.deltaSeconds ?? null,
       trafficVehicles: state.traffic.vehicleCount,
       trafficHits: state.traffic.hitCount,
       nearestTrafficDistance: state.traffic.nearest?.distanceAhead ?? null,
@@ -81,7 +83,6 @@ export function bootRacingGame(host: HTMLElement): void {
       difficultyId: state.level.difficulty.id,
       difficultyTitle: state.level.difficulty.title,
       generator: state.level.generator,
-      trackSeed: state.level.proceduralSeed,
       calibration,
     }
     shell.dataset.ready = 'true'

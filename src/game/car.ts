@@ -19,14 +19,17 @@ export interface CarUpdateResult {
 }
 
 export const CAR_LIMITS = {
-  maxSpeed: 142,
+  maxSpeed: 132,
   reverseSpeed: -18,
-  acceleration: 68,
+  acceleration: 76,
   braking: 92,
-  drag: 18,
-  offroadDrag: 58,
-  steerForce: 36,
-  lateralDamping: 6.8,
+  driftBrake: 46,
+  drag: 14,
+  offroadDrag: 62,
+  steerForce: 42,
+  lateralDamping: 5.2,
+  driftDamping: 2.6,
+  driftKick: 34,
   collisionCooldown: 0.8,
 }
 
@@ -53,8 +56,13 @@ export function updateCar(
   const roadHalfWidth = track.roadWidth * 0.5
   const collisionLimit = track.roadWidth * 0.68
   const wasOffroad = Math.abs(car.lateral) > roadHalfWidth
+  const driftIntent = input.brake && input.steer !== 0 && car.speed > 30
   const engineForce = input.accelerate ? CAR_LIMITS.acceleration : 0
-  const brakeForce = input.brake ? CAR_LIMITS.braking : 0
+  const brakeForce = input.brake
+    ? driftIntent
+      ? CAR_LIMITS.driftBrake
+      : CAR_LIMITS.braking
+    : 0
   const drag = wasOffroad ? CAR_LIMITS.offroadDrag : CAR_LIMITS.drag
   const dragForce = car.speed > 0 ? drag : drag * 0.35
   const speedDelta = engineForce - brakeForce - dragForce
@@ -72,12 +80,15 @@ export function updateCar(
   const speedRatio = Math.max(0.18, Math.abs(car.speed) / CAR_LIMITS.maxSpeed)
   const curvePush = -track.curve * Math.max(0.2, speedRatio) * 10
   const steerPush = input.steer * CAR_LIMITS.steerForce * speedRatio
+  const driftPush = driftIntent ? input.steer * CAR_LIMITS.driftKick * speedRatio : 0
 
-  car.lateralVelocity += (steerPush + curvePush) * dt
-  car.lateralVelocity *= Math.exp(-CAR_LIMITS.lateralDamping * dt)
+  car.lateralVelocity += (steerPush + curvePush + driftPush) * dt
+  car.lateralVelocity *= Math.exp(
+    -(driftIntent ? CAR_LIMITS.driftDamping : CAR_LIMITS.lateralDamping) * dt,
+  )
   car.lateral += car.lateralVelocity * dt
-  car.drift = clamp(car.lateralVelocity / 16, -1, 1)
-  car.heading = clamp(car.drift * 0.24 + track.curve * 0.12, -0.42, 0.42)
+  car.drift = clamp(car.lateralVelocity / 12 + (driftIntent ? input.steer * 0.18 : 0), -1.2, 1.2)
+  car.heading = clamp(car.drift * 0.32 + track.curve * 0.12, -0.52, 0.52)
   car.distance += Math.max(0, car.speed) * dt
   car.offroad = Math.abs(car.lateral) > roadHalfWidth
   car.collisionCooldown = Math.max(0, car.collisionCooldown - dt)

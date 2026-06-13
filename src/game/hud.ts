@@ -8,30 +8,27 @@ export interface Hud {
 export function createHud(host: HTMLElement): Hud {
   const root = document.createElement('div')
   root.innerHTML = `
-    <section class="hud-panel" data-testid="hud-panel" aria-label="Race telemetry">
-      <div class="hud-title">NEON RIDGE</div>
+    <section class="hud-panel" data-testid="hud-panel" aria-label="Drift telemetry">
+      <div class="hud-title">NEON RIDGE DRIFT</div>
       ${row('SPD', 'speed')}
       ${row('DST', 'distance')}
-      ${row('CP', 'checkpoint')}
       ${row('SEC', 'section')}
-      ${row('GRD', 'grade')}
-      ${row('STY', 'style')}
+      ${row('SCR', 'score')}
+      ${row('DRF', 'styleScore')}
+      ${row('COM', 'styleCombo')}
+      ${row('BST', 'bestStyleCombo')}
       ${row('TRF', 'traffic')}
       ${row('HIT', 'collisions')}
     </section>
     <section class="debug-panel" data-testid="debug-panel" aria-label="Engine debug">
-      ${row('GEN', 'seed')}
+      ${row('STY', 'style')}
       ${row('TOP', 'topSpeed')}
-      ${row('PAR', 'target')}
-      ${row('SPL', 'split')}
-      ${row('SCR', 'score')}
-      ${row('DRF', 'styleScore')}
-      ${row('CHN', 'styleCombo')}
+      ${row('AWD', 'award')}
       ${row('OFF', 'offroad')}
       ${row('LAT', 'lateral')}
-      ${row('LAP', 'lap')}
+      ${row('RUN', 'elapsed')}
     </section>
-    <div class="title-strip" data-testid="title-strip">ENGINE MILESTONE 01</div>
+    <div class="title-strip" data-testid="title-strip">DRIFT MILESTONE 02</div>
   `
   host.append(root)
 
@@ -46,10 +43,11 @@ export function createHud(host: HTMLElement): Hud {
     update: (snapshot) => {
       set(values, 'speed', `${Math.round(snapshot.car.speed).toString().padStart(3, '0')} KMH`)
       set(values, 'distance', `${Math.floor(snapshot.car.distance)} M`)
-      set(values, 'checkpoint', `${Math.floor(snapshot.nextCheckpoint)} M`)
       set(values, 'section', snapshot.currentSection.title.toUpperCase())
-      set(values, 'grade', snapshot.telemetry.lastCheckpoint?.grade.toUpperCase() ?? 'READY')
-      set(values, 'style', snapshot.telemetry.styleRank.toUpperCase())
+      set(values, 'score', `${snapshot.telemetry.score}`)
+      set(values, 'styleScore', `${snapshot.telemetry.styleScore}`)
+      set(values, 'styleCombo', `${snapshot.telemetry.styleCombo}`)
+      set(values, 'bestStyleCombo', `${snapshot.telemetry.bestStyleCombo}`)
       set(
         values,
         'traffic',
@@ -58,26 +56,22 @@ export function createHud(host: HTMLElement): Hud {
           : 'CLEAR',
       )
       set(values, 'collisions', `${snapshot.car.collisionCount}`)
-      set(values, 'seed', `${snapshot.level.proceduralSeed}`)
+      set(values, 'style', snapshot.telemetry.styleRank.toUpperCase())
       set(values, 'topSpeed', `${Math.round(snapshot.telemetry.topSpeed)} KMH`)
-      set(values, 'target', `${snapshot.checkpointTargetSeconds.toFixed(1)} S`)
       set(
         values,
-        'split',
-        snapshot.telemetry.lastCheckpoint
-          ? `${formatSigned(snapshot.telemetry.lastCheckpoint.deltaSeconds)} S`
-          : '0.0 S',
+        'award',
+        snapshot.telemetry.lastStyleAward
+          ? `+${snapshot.telemetry.lastStyleAward.points}`
+          : 'READY',
       )
-      set(values, 'score', `${snapshot.telemetry.score}`)
-      set(values, 'styleScore', `${snapshot.telemetry.styleScore}`)
-      set(values, 'styleCombo', `${snapshot.telemetry.styleCombo}`)
       set(values, 'offroad', `${snapshot.telemetry.offroadTime.toFixed(1)} S`)
       set(values, 'lateral', snapshot.car.lateral.toFixed(1))
-      set(values, 'lap', `${snapshot.telemetry.currentLap + 1}`)
+      set(values, 'elapsed', `${snapshot.telemetry.elapsed.toFixed(1)} S`)
       if (titleStrip) {
         titleStrip.textContent = [
           snapshot.level.title,
-          snapshot.level.difficulty.title.toUpperCase(),
+          `${snapshot.level.difficulty.title.toUpperCase()} DRIFT`,
           snapshot.currentSection.title,
         ].join(' / ')
       }
@@ -99,9 +93,4 @@ function set(values: Map<string, HTMLElement>, key: string, value: string): void
   if (element) {
     element.textContent = value
   }
-}
-
-function formatSigned(value: number): string {
-  const sign = value > 0 ? '+' : ''
-  return `${sign}${value.toFixed(1)}`
 }

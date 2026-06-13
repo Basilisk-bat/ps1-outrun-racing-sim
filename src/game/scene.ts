@@ -14,6 +14,7 @@ export interface SceneRenderer {
 const CAMERA_LOOK_AHEAD = 110
 const CAMERA_BACK = 34
 const CAMERA_HEIGHT = 16
+const RIDGE_LOOP_COPIES = 6
 
 export function createSceneRenderer(
   host: HTMLElement,
@@ -32,8 +33,8 @@ export function createSceneRenderer(
   host.append(renderer.domElement)
 
   const scene = new THREE.Scene()
-  scene.background = new THREE.Color(0x171135)
-  scene.fog = new THREE.Fog(0x171135, 180, 650)
+  scene.background = new THREE.Color(0x130f2f)
+  scene.fog = new THREE.Fog(0x130f2f, 200, 760)
 
   const camera = new THREE.PerspectiveCamera(61, 1, 0.1, 900)
   const sun = new THREE.DirectionalLight(0xfff4bf, 1.4)
@@ -41,10 +42,10 @@ export function createSceneRenderer(
   scene.add(sun)
   scene.add(new THREE.HemisphereLight(0xff8fcc, 0x162b2d, 1.8))
   scene.add(createHorizon())
-  scene.add(createTerrain(level))
-  scene.add(createRoad(level))
-  scene.add(createStripes(level))
-  scene.add(createProps(level))
+  const ridgeWorld = createLoopedRidgeWorld(level)
+  scene.add(ridgeWorld.group)
+  const city = createOverlookCity()
+  scene.add(city)
   const traffic = createTrafficMeshes(level)
   scene.add(traffic.group)
 
@@ -67,6 +68,8 @@ export function createSceneRenderer(
 
     car.position.set(carX, carY, carZ)
     car.rotation.set(0, snapshot.car.heading, -snapshot.car.drift * 0.2)
+    updateLoopedRidgeWorld(ridgeWorld, snapshot.car.distance, snapshot.level.totalLength)
+    updateOverlookCity(city, snapshot)
     updateTrafficMeshes(traffic.entries, snapshot)
 
     const chaseSample = sampleTrack(snapshot.level, snapshot.car.distance - CAMERA_BACK)
@@ -96,6 +99,46 @@ export function createSceneRenderer(
       renderer.domElement.remove()
     },
   }
+}
+
+interface LoopedRidgeWorld {
+  group: THREE.Group
+  loops: THREE.Group[]
+}
+
+function createLoopedRidgeWorld(level: LevelManifest): LoopedRidgeWorld {
+  const group = new THREE.Group()
+  const loops = Array.from({ length: RIDGE_LOOP_COPIES }, () => {
+    const loop = createRidgeLoop(level)
+    group.add(loop)
+    return loop
+  })
+
+  updateLoopedRidgeWorld({ group, loops }, 0, level.totalLength)
+  return { group, loops }
+}
+
+function createRidgeLoop(level: LevelManifest): THREE.Group {
+  const group = new THREE.Group()
+  group.add(createTerrain(level))
+  group.add(createRoad(level))
+  group.add(createStripes(level))
+  group.add(createProps(level))
+  return group
+}
+
+function updateLoopedRidgeWorld(
+  world: LoopedRidgeWorld,
+  carDistance: number,
+  totalLength: number,
+): void {
+  const currentLoop = Math.floor(carDistance / totalLength)
+
+  world.loops.forEach((loop, index) => {
+    const loopNumber = currentLoop + index - 1
+    loop.visible = loopNumber >= 0
+    loop.position.z = -loopNumber * totalLength
+  })
 }
 
 function createRoad(level: LevelManifest): THREE.Mesh {
@@ -171,23 +214,59 @@ function createTerrain(level: LevelManifest): THREE.Mesh {
   for (const segment of level.segments) {
     const start = sampleTrack(level, segment.start)
     const end = sampleTrack(level, segment.start + segment.length)
-    const width = 90
+    const startHalf = start.roadWidth * 0.5
+    const endHalf = end.roadWidth * 0.5
+    const ridgeWidth = 92
+    const shoulderWidth = 24
+    const valleyWidth = 220
 
     addQuad(positions, [
-      start.centerX - width,
-      start.elevation - 0.22,
+      start.centerX - startHalf - ridgeWidth,
+      start.elevation - 0.26,
       -segment.start,
-      start.centerX + width,
-      start.elevation - 0.22,
+      start.centerX - startHalf,
+      start.elevation - 0.18,
       -segment.start,
-      end.centerX + width,
-      end.elevation - 0.22,
+      end.centerX - endHalf,
+      end.elevation - 0.18,
       -(segment.start + segment.length),
-      end.centerX - width,
-      end.elevation - 0.22,
+      end.centerX - endHalf - ridgeWidth,
+      end.elevation - 0.26,
       -(segment.start + segment.length),
     ])
-    pushQuadColor(colors, color.setHex(segment.index % 2 === 0 ? 0x174640 : 0x1f334b))
+    pushQuadColor(colors, color.setHex(segment.index % 2 === 0 ? 0x1d5048 : 0x22415b))
+
+    addQuad(positions, [
+      start.centerX + startHalf,
+      start.elevation - 0.2,
+      -segment.start,
+      start.centerX + startHalf + shoulderWidth,
+      start.elevation - 0.46,
+      -segment.start,
+      end.centerX + endHalf + shoulderWidth,
+      end.elevation - 0.46,
+      -(segment.start + segment.length),
+      end.centerX + endHalf,
+      end.elevation - 0.2,
+      -(segment.start + segment.length),
+    ])
+    pushQuadColor(colors, color.setHex(segment.index % 2 === 0 ? 0x1c3d43 : 0x193948))
+
+    addQuad(positions, [
+      start.centerX + startHalf + shoulderWidth,
+      start.elevation - 0.72,
+      -segment.start,
+      start.centerX + startHalf + valleyWidth,
+      start.elevation - 38,
+      -segment.start,
+      end.centerX + endHalf + valleyWidth,
+      end.elevation - 38,
+      -(segment.start + segment.length),
+      end.centerX + endHalf + shoulderWidth,
+      end.elevation - 0.72,
+      -(segment.start + segment.length),
+    ])
+    pushQuadColor(colors, color.setHex(segment.index % 2 === 0 ? 0x102c3a : 0x112633))
   }
 
   const geometry = new THREE.BufferGeometry()
@@ -198,6 +277,55 @@ function createTerrain(level: LevelManifest): THREE.Mesh {
   return new THREE.Mesh(
     geometry,
     new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }),
+  )
+}
+
+function createOverlookCity(): THREE.Group {
+  const group = new THREE.Group()
+  const baseMaterial = new THREE.MeshLambertMaterial({ color: 0x20345f, flatShading: true })
+  const litMaterial = new THREE.MeshBasicMaterial({ color: 0xffd36e })
+  const tealMaterial = new THREE.MeshBasicMaterial({ color: 0x72f2ff })
+
+  for (let index = 0; index < 54; index += 1) {
+    const row = Math.floor(index / 9)
+    const column = index % 9
+    const height = 18 + ((index * 17) % 54)
+    const width = 5 + ((index * 5) % 5)
+    const depth = 5 + ((index * 7) % 7)
+    const building = new THREE.Mesh(
+      new THREE.BoxGeometry(width, height, depth),
+      baseMaterial,
+    )
+    building.position.set(column * 13 - 52 + (row % 2) * 5, height * 0.5, row * -18)
+    group.add(building)
+
+    if (index % 2 === 0) {
+      const light = new THREE.Mesh(
+        new THREE.BoxGeometry(width * 0.7, 0.35, 0.25),
+        index % 4 === 0 ? litMaterial : tealMaterial,
+      )
+      light.position.set(building.position.x, height * 0.72, building.position.z + depth * 0.52)
+      group.add(light)
+    }
+  }
+
+  const deck = new THREE.Mesh(
+    new THREE.BoxGeometry(150, 1, 125),
+    new THREE.MeshLambertMaterial({ color: 0x0c1b2d, flatShading: true }),
+  )
+  deck.position.set(0, -0.7, -48)
+  group.add(deck)
+  group.rotation.y = -0.12
+
+  return group
+}
+
+function updateOverlookCity(city: THREE.Group, snapshot: RacingSnapshot): void {
+  const lookSample = sampleTrack(snapshot.level, snapshot.car.distance + 340)
+  city.position.set(
+    lookSample.centerX + 72,
+    lookSample.elevation - 24,
+    -(snapshot.car.distance + 320),
   )
 }
 

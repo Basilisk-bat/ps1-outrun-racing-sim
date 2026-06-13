@@ -60,7 +60,7 @@ export interface LevelManifest {
   id: string
   title: string
   difficulty: RouteDifficultyProfile
-  generator: 'procedural-v1'
+  generator: 'infinite-ridge-v1'
   proceduralSeed: number
   segmentLength: number
   totalLength: number
@@ -88,10 +88,10 @@ export interface ProceduralTrackOptions {
 }
 
 const DEFAULT_SEGMENT_LENGTH = 64
-const DEFAULT_ROAD_WIDTH = 16
+const DEFAULT_ROAD_WIDTH = 18
 export const DEFAULT_ROUTE_DIFFICULTY: RouteDifficultyId = 'arcade'
 export const DEFAULT_TRACK_SEED = 0x19_86_09
-const DEFAULT_SECTION_COUNT = 4
+const DEFAULT_SECTION_COUNT = 8
 const SEGMENTS_PER_SECTION = 4
 const MIN_SECTION_COUNT = 2
 const MAX_SECTION_COUNT = 8
@@ -142,56 +142,56 @@ interface SectionTheme {
 
 const SECTION_THEMES: SectionTheme[] = [
   {
-    id: 'sunset-gate',
-    title: 'Sunset Gate',
+    id: 'city-overlook',
+    title: 'City Overlook',
     durationSeconds: 4.2,
     signatureProp: 'palm',
     primaryColor: '#ff5ab3',
     accentColor: '#ffe66f',
     propStep: 56,
-    curveAnchors: [0, 0.18, 0.34, 0.18],
+    curveAnchors: [0.08, 0.34, 0.5, 0.28],
     elevationPhase: 0,
     elevationAmplitude: 2.4,
-    roadNarrowing: 0.5,
+    roadNarrowing: 0.3,
   },
   {
-    id: 'glass-narrows',
-    title: 'Glass Narrows',
+    id: 'switchback-arc',
+    title: 'Switchback Arc',
     durationSeconds: 3.3,
     signatureProp: 'sign',
     primaryColor: '#4ee7ff',
     accentColor: '#ff8bd1',
     propStep: 48,
-    curveAnchors: [0, -0.22, -0.4, -0.24],
+    curveAnchors: [-0.12, -0.42, -0.58, -0.3],
     elevationPhase: 1.3,
     elevationAmplitude: 2.9,
-    roadNarrowing: 1.4,
+    roadNarrowing: 0.8,
   },
   {
-    id: 'magenta-crest',
-    title: 'Magenta Crest',
+    id: 'neon-causeway',
+    title: 'Neon Causeway',
     durationSeconds: 3.3,
     signatureProp: 'crystal',
     primaryColor: '#7fff92',
     accentColor: '#b57cff',
     propStep: 52,
-    curveAnchors: [0, 0.08, 0.32, 0.5],
+    curveAnchors: [0.18, 0.38, 0.22, -0.18],
     elevationPhase: 2.15,
     elevationAmplitude: 3.3,
-    roadNarrowing: 1.1,
+    roadNarrowing: 0.6,
   },
   {
-    id: 'final-drop',
-    title: 'Final Drop',
+    id: 'radio-crest',
+    title: 'Radio Crest',
     durationSeconds: 3.3,
     signatureProp: 'sign',
     primaryColor: '#ffe66f',
     accentColor: '#4ee7ff',
     propStep: 44,
-    curveAnchors: [0.24, -0.16, -0.34, 0],
+    curveAnchors: [-0.2, 0.08, 0.44, 0.16],
     elevationPhase: 3.5,
     elevationAmplitude: 3.8,
-    roadNarrowing: 0.9,
+    roadNarrowing: 0.7,
   },
 ]
 
@@ -213,10 +213,10 @@ export function createProceduralTrack(
   const totalLength = segments.length * DEFAULT_SEGMENT_LENGTH
 
   return {
-    id: 'neon-ridge-engine-m1',
-    title: 'Neon Ridge Run',
+    id: 'neon-ridge-drift-m2',
+    title: 'Neon Ridge Drift',
     difficulty,
-    generator: 'procedural-v1',
+    generator: 'infinite-ridge-v1',
     proceduralSeed: seed,
     segmentLength: DEFAULT_SEGMENT_LENGTH,
     totalLength,
@@ -574,7 +574,7 @@ function themeForIndex(index: number): SectionTheme {
     ...baseTheme,
     id: `${baseTheme.id}-${lap + 1}`,
     title: `${baseTheme.title} ${lap + 1}`,
-    durationSeconds: baseTheme.durationSeconds + lap * 0.28,
+    durationSeconds: Math.max(2.45, baseTheme.durationSeconds - lap * 0.72),
     propStep: Math.max(36, baseTheme.propStep - lap * 3),
     curveAnchors: baseTheme.curveAnchors.map((curve) =>
       roundGeometry(curve * sign),

@@ -45,54 +45,65 @@ test('input changes speed, distance, and steering state', async ({ page }) => {
   expect(after.lateral).toBeGreaterThan(before.lateral)
 })
 
-test('score economy state is exposed in browser telemetry', async ({ page }) => {
+test('drift score economy state is exposed in browser telemetry', async ({ page }) => {
   await page.goto('/')
   await page.waitForFunction(() => window.__RPK_RACING_READY__ === true)
 
   await page.keyboard.down('ArrowUp')
+  await page.waitForFunction(() => {
+    const state = window.__RPK_RACING_STATE__
+    return Boolean(state && state.speed >= 54)
+  })
+  await page.keyboard.down('ArrowRight')
+  await page.keyboard.down('ArrowDown')
+  let driftState: Awaited<ReturnType<typeof readState>> | undefined
   try {
     await page.waitForFunction(
       () => {
         const state = window.__RPK_RACING_STATE__
         return Boolean(
           state &&
-            state.speed >= 70 &&
-            state.styleScore > 0 &&
-            state.styleCombo > 0 &&
-            state.bestStyleCombo >= state.styleCombo &&
+            state.gameMode === 'drift' &&
+            state.driftScore > 0 &&
+            state.driftCombo > 0 &&
+            state.bestDriftCombo >= state.driftCombo &&
+            state.styleRank === 'drift' &&
             state.score === state.checkpointScore + state.styleScore,
         )
       },
       undefined,
       { timeout: 6_000 },
     )
+    driftState = await readState(page)
   } finally {
+    await page.keyboard.up('ArrowDown')
+    await page.keyboard.up('ArrowRight')
     await page.keyboard.up('ArrowUp')
   }
 
   const state = await readState(page)
+  if (!driftState) {
+    throw new Error('Missing drift telemetry state')
+  }
+  expect(state.gameMode).toBe('drift')
   expect(state.difficultyId).toBe('arcade')
   expect(state.difficultyTitle).toBe('Arcade')
-  expect(state.styleRank).toBe('clean')
-  expect(state.styleScore).toBeGreaterThan(0)
-  expect(state.styleCombo).toBeGreaterThan(0)
-  expect(state.bestStyleCombo).toBeGreaterThanOrEqual(state.styleCombo)
+  expect(state.generator).toBe('infinite-ridge-v1')
+  expect(driftState.styleRank).toBe('drift')
+  expect(state.driftScore).toBeGreaterThan(0)
+  expect(state.driftCombo).toBeGreaterThan(0)
+  expect(state.bestDriftCombo).toBeGreaterThanOrEqual(state.driftCombo)
   expect(state.score).toBe(state.checkpointScore + state.styleScore)
   expect(state.trafficVehicles).toBeGreaterThan(4)
   expect(state.trafficHits).toBe(0)
   expect(state.nearestTrafficDistance).toBeGreaterThan(0)
-  expect(state.calibration.completedLaps).toBe(1)
-  expect(state.calibration.completedCheckpoints).toBe(4)
-  expect(state.calibration.paceVerdict).toBe('on-pace')
-  expect(state.calibration.averageDeltaSeconds).toBeGreaterThan(-2)
-  expect(state.calibration.averageDeltaSeconds).toBeLessThan(-0.5)
 
-  await expect(page.getByTestId('hud-panel')).toContainText('STY')
-  await expect(page.getByTestId('debug-panel')).toContainText('GEN')
-  await expect(page.getByTestId('debug-panel')).toContainText('DRF')
-  await expect(page.getByTestId('debug-panel')).toContainText('CHN')
+  await expect(page.getByTestId('hud-panel')).toContainText('DRF')
+  await expect(page.getByTestId('hud-panel')).toContainText('COM')
+  await expect(page.getByTestId('hud-panel')).toContainText('BST')
+  await expect(page.getByTestId('debug-panel')).toContainText('AWD')
   await expect(page.getByTestId('hud-panel')).toContainText('TRF')
-  await expect(page.getByTestId('title-strip')).toContainText('ARCADE')
+  await expect(page.getByTestId('title-strip')).toContainText('DRIFT')
 })
 
 test('difficulty query parameter selects the playable route profile', async ({ page }) => {
@@ -102,18 +113,18 @@ test('difficulty query parameter selects the playable route profile', async ({ p
   const state = await readState(page)
   expect(state.difficultyId).toBe('rival')
   expect(state.difficultyTitle).toBe('Rival')
-  expect(state.calibration.completedLaps).toBe(1)
 
-  await expect(page.getByTestId('title-strip')).toContainText('RIVAL')
+  await expect(page.getByTestId('title-strip')).toContainText('RIVAL DRIFT')
 })
 
-test('seed query parameter selects a procedural track variant', async ({ page }) => {
-  await page.goto('/?seed=90210')
+test('the ridge opens as an endless drift game without a seed parameter', async ({ page }) => {
+  await page.goto('/')
   await page.waitForFunction(() => window.__RPK_RACING_READY__ === true)
 
   const state = await readState(page)
-  expect(state.generator).toBe('procedural-v1')
-  expect(state.trackSeed).toBe(90210)
+  expect(state.gameMode).toBe('drift')
+  expect(state.generator).toBe('infinite-ridge-v1')
+  await expect(page.getByTestId('debug-panel')).not.toContainText('GEN')
 })
 
 test('hud panels are framed without overlapping each other', async ({ page }) => {

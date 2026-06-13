@@ -8,7 +8,7 @@ describe('calibration trace', () => {
 
     expect(firstTrace.summary).toEqual(secondTrace.summary)
     expect(firstTrace.summary.completedLaps).toBe(1)
-    expect(firstTrace.summary.completedCheckpoints).toBe(4)
+    expect(firstTrace.summary.completedCheckpoints).toBe(8)
     expect(firstTrace.summary.collisions).toBe(0)
     expect(firstTrace.summary.score).toBe(
       firstTrace.summary.checkpointScore + firstTrace.summary.styleScore,
@@ -17,22 +17,30 @@ describe('calibration trace', () => {
     expect(firstTrace.summary.averageDeltaSeconds).toBeLessThan(-0.5)
     expect(firstTrace.summary.paceVerdict).toBe('on-pace')
     expect(firstTrace.summary.gradeCounts).toEqual({
-      gold: 4,
+      gold: 8,
       silver: 0,
       bronze: 0,
       miss: 0,
     })
     expect(firstTrace.checkpoints.map((checkpoint) => checkpoint.sectionId)).toEqual([
-      'sunset-gate',
-      'glass-narrows',
-      'magenta-crest',
-      'final-drop',
+      'city-overlook',
+      'switchback-arc',
+      'neon-causeway',
+      'radio-crest',
+      'city-overlook-2',
+      'switchback-arc-2',
+      'neon-causeway-2',
+      'radio-crest-2',
     ])
     expect(firstTrace.checkpoints.map((checkpoint) => checkpoint.targetSeconds)).toEqual([
       4.2,
       7.5,
       10.8,
       14.1,
+      17.6,
+      20.2,
+      22.7,
+      25.3,
     ])
   })
 

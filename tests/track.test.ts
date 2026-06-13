@@ -3,7 +3,6 @@ import {
   calculateCenterOffset,
   checkpointTargetSeconds,
   createProceduralTrack,
-  DEFAULT_TRACK_SEED,
   createNeonRidgeLevel,
   ROUTE_DIFFICULTY_PROFILES,
   currentRouteSection,
@@ -13,14 +12,14 @@ import {
 } from '../src/game/track.ts'
 
 describe('track manifest', () => {
-  it('generates a deterministic level with ordered checkpoints', () => {
+  it('generates a deterministic endless ridge without a player-provided seed', () => {
     const level = createNeonRidgeLevel()
 
-    expect(level.id).toBe('neon-ridge-engine-m1')
+    expect(level.id).toBe('neon-ridge-drift-m2')
+    expect(level.title).toBe('Neon Ridge Drift')
     expect(level.difficulty).toEqual(ROUTE_DIFFICULTY_PROFILES.arcade)
-    expect(level.generator).toBe('procedural-v1')
-    expect(level.proceduralSeed).toBe(DEFAULT_TRACK_SEED)
-    expect(level.segments.length).toBeGreaterThan(8)
+    expect(level.generator).toBe('infinite-ridge-v1')
+    expect(level.segments.length).toBeGreaterThan(24)
     expect(level.totalLength).toBe(level.segmentLength * level.segments.length)
     expect(level.checkpoints).toEqual([...level.checkpoints].sort((a, b) => a - b))
     expect(level.checkpoints).toEqual(level.sections.map((section) => section.checkpoint))
@@ -29,16 +28,20 @@ describe('track manifest', () => {
     expect(level.traffic.length).toBeGreaterThan(4)
   })
 
-  it('preserves the canonical route identities while generating from section themes', () => {
+  it('preserves the canonical ridge identities while generating from section themes', () => {
     const level = createNeonRidgeLevel()
 
     expect(level.sections.map((section) => section.id)).toEqual([
-      'sunset-gate',
-      'glass-narrows',
-      'magenta-crest',
-      'final-drop',
+      'city-overlook',
+      'switchback-arc',
+      'neon-causeway',
+      'radio-crest',
+      'city-overlook-2',
+      'switchback-arc-2',
+      'neon-causeway-2',
+      'radio-crest-2',
     ])
-    expect(level.sections.map((section) => section.targetSeconds)).toEqual([
+    expect(level.sections.slice(0, 4).map((section) => section.targetSeconds)).toEqual([
       4.2,
       7.5,
       10.8,
@@ -54,7 +57,6 @@ describe('track manifest', () => {
     expect(second.sections).toEqual(first.sections)
     expect(second.segments).toEqual(first.segments)
     expect(second.props).toEqual(first.props)
-    expect(alternate.proceduralSeed).toBe(13579)
     expect(alternate.segments.map((segment) => segment.curve)).not.toEqual(
       first.segments.map((segment) => segment.curve),
     )
@@ -89,7 +91,7 @@ describe('track manifest', () => {
     expect(level.sections).toHaveLength(6)
     expect(level.checkpoints).toHaveLength(6)
     expect(level.segments).toHaveLength(24)
-    expect(level.sections[4].id).toBe('sunset-gate-2')
+    expect(level.sections[4].id).toBe('city-overlook-2')
     expect(new Set(level.sections.map((section) => section.id)).size).toBe(
       level.sections.length,
     )
