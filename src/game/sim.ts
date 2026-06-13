@@ -1,4 +1,4 @@
-import { createInitialCarState, resetCar, updateCar } from './car.ts'
+import { CAR_LIMITS, awardCarBoost, createInitialCarState, resetCar, updateCar } from './car.ts'
 import type { InputState } from './input.ts'
 import {
   checkpointTargetSeconds as routeCheckpointTargetSeconds,
@@ -64,6 +64,9 @@ export class RacingSim {
       this.telemetry.elapsed + dt,
     )
     const collided = roadContact.collided || trafficContact.collided
+    if (trafficContact.nearMissVehicle) {
+      awardCarBoost(this.car, CAR_LIMITS.nearMissBoostAward)
+    }
     updateTelemetry(
       this.telemetry,
       this.level,
@@ -71,6 +74,9 @@ export class RacingSim {
       dt,
       collided,
       trafficContact.vehicle ? `TRAFFIC ${trafficContact.vehicle.id}` : undefined,
+      trafficContact.nearMissVehicle
+        ? `NEAR ${trafficContact.nearMissVehicle.id}`
+        : undefined,
     )
 
     return this.snapshot()

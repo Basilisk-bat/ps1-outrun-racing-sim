@@ -94,6 +94,7 @@ test('drift score economy state is exposed in browser telemetry', async ({ page 
   expect(state.driftCombo).toBeGreaterThan(0)
   expect(state.bestDriftCombo).toBeGreaterThanOrEqual(state.driftCombo)
   expect(state.score).toBe(state.checkpointScore + state.styleScore)
+  expect(state.boostMeter).toBeGreaterThan(0)
   expect(state.trafficVehicles).toBeGreaterThan(4)
   expect(state.trafficHits).toBe(0)
   expect(state.nearestTrafficDistance).toBeGreaterThan(0)
@@ -101,9 +102,48 @@ test('drift score economy state is exposed in browser telemetry', async ({ page 
   await expect(page.getByTestId('hud-panel')).toContainText('DRF')
   await expect(page.getByTestId('hud-panel')).toContainText('COM')
   await expect(page.getByTestId('hud-panel')).toContainText('BST')
+  await expect(page.getByTestId('hud-panel')).toContainText('NIT')
   await expect(page.getByTestId('debug-panel')).toContainText('AWD')
+  await expect(page.getByTestId('debug-panel')).toContainText('RCV')
   await expect(page.getByTestId('hud-panel')).toContainText('TRF')
   await expect(page.getByTestId('title-strip')).toContainText('DRIFT')
+})
+
+test('boost charges from drift input and drains while held', async ({ page }) => {
+  await page.goto('/')
+  await page.waitForFunction(() => window.__RPK_RACING_READY__ === true)
+
+  await page.keyboard.down('ArrowUp')
+  await page.waitForFunction(() => {
+    const state = window.__RPK_RACING_STATE__
+    return Boolean(state && state.speed >= 58)
+  })
+  await page.keyboard.down('ArrowRight')
+  await page.keyboard.down('ArrowDown')
+  let chargedBoost = 0
+  try {
+    await page.waitForFunction(() => {
+      const state = window.__RPK_RACING_STATE__
+      return Boolean(state && state.boostMeter >= 8 && state.styleRank === 'drift')
+    })
+    chargedBoost = (await readState(page)).boostMeter
+
+    await page.keyboard.down('Space')
+    await page.waitForFunction((boostBefore) => {
+      const state = window.__RPK_RACING_STATE__
+      return Boolean(state && state.boostActive && state.boostMeter < boostBefore)
+    }, chargedBoost)
+  } finally {
+    await page.keyboard.up('Space')
+    await page.keyboard.up('ArrowDown')
+    await page.keyboard.up('ArrowRight')
+    await page.keyboard.up('ArrowUp')
+  }
+
+  const state = await readState(page)
+  expect(chargedBoost).toBeGreaterThan(0)
+  expect(state.boostMeter).toBeLessThan(chargedBoost)
+  await expect(page.getByTestId('hud-panel')).toContainText('NIT')
 })
 
 test('difficulty query parameter selects the playable route profile', async ({ page }) => {

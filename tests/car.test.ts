@@ -6,6 +6,7 @@ import type { TrackSample } from '../src/game/track.ts'
 const neutralInput: InputState = {
   accelerate: false,
   brake: false,
+  boost: false,
   steer: 0,
   reset: false,
 }
@@ -68,16 +69,43 @@ describe('car physics', () => {
     expect(driftBrake.heading).toBeGreaterThan(standardBrake.heading)
   })
 
+  it('charges boost from controlled drift and spends it through boost input', () => {
+    const car = createInitialCarState()
+    const boostPad: TrackSample = { ...flatTrack, roadWidth: 48 }
+    car.speed = 84
+
+    for (let frame = 0; frame < 90; frame += 1) {
+      updateCar(car, { ...neutralInput, accelerate: true, brake: true, steer: 1 }, boostPad, 1 / 60)
+    }
+
+    const chargedBoost = car.boostMeter
+    expect(chargedBoost).toBeGreaterThan(4)
+
+    car.speed = 86
+    updateCar(car, { ...neutralInput, accelerate: true, boost: true }, boostPad, 1 / 6)
+
+    expect(car.boostActive).toBe(true)
+    expect(car.boostMeter).toBeLessThan(chargedBoost)
+    expect(car.speed).toBeGreaterThan(86)
+  })
+
   it('marks offroad and records a collision hook when pushed past the limit', () => {
     const car = createInitialCarState()
     car.speed = 100
     car.lateral = 13
+    car.boostMeter = 40
 
     const result = updateCar(car, neutralInput, flatTrack, 1 / 60)
 
     expect(result.offroad).toBe(true)
     expect(result.collided).toBe(true)
     expect(car.collisionCount).toBe(1)
+    expect(car.boostMeter).toBeLessThan(40)
+    expect(car.recoverySeconds).toBeGreaterThan(0)
     expect(Math.abs(car.lateral)).toBeLessThanOrEqual(flatTrack.roadWidth * 0.68)
+
+    car.speed = 88
+    updateCar(car, { ...neutralInput, accelerate: true, boost: true }, flatTrack, 1 / 60)
+    expect(car.boostActive).toBe(false)
   })
 })

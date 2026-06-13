@@ -17,13 +17,16 @@ export function createHud(host: HTMLElement): Hud {
       ${row('DRF', 'styleScore')}
       ${row('COM', 'styleCombo')}
       ${row('BST', 'bestStyleCombo')}
+      ${row('NIT', 'boost')}
       ${row('TRF', 'traffic')}
       ${row('HIT', 'collisions')}
+      ${row('MIS', 'nearMisses')}
     </section>
     <section class="debug-panel" data-testid="debug-panel" aria-label="Engine debug">
       ${row('STY', 'style')}
       ${row('TOP', 'topSpeed')}
       ${row('AWD', 'award')}
+      ${row('RCV', 'recovery')}
       ${row('OFF', 'offroad')}
       ${row('LAT', 'lateral')}
       ${row('RUN', 'elapsed')}
@@ -50,12 +53,18 @@ export function createHud(host: HTMLElement): Hud {
       set(values, 'bestStyleCombo', `${snapshot.telemetry.bestStyleCombo}`)
       set(
         values,
+        'boost',
+        `${Math.round(snapshot.car.boostMeter)}%${snapshot.car.boostActive ? ' ON' : ''}`,
+      )
+      set(
+        values,
         'traffic',
         snapshot.traffic.nearest
           ? `${Math.round(snapshot.traffic.nearest.distanceAhead)} M`
           : 'CLEAR',
       )
       set(values, 'collisions', `${snapshot.car.collisionCount}`)
+      set(values, 'nearMisses', `${snapshot.traffic.nearMissCount}`)
       set(values, 'style', snapshot.telemetry.styleRank.toUpperCase())
       set(values, 'topSpeed', `${Math.round(snapshot.telemetry.topSpeed)} KMH`)
       set(
@@ -63,6 +72,13 @@ export function createHud(host: HTMLElement): Hud {
         'award',
         snapshot.telemetry.lastStyleAward
           ? `+${snapshot.telemetry.lastStyleAward.points}`
+          : 'READY',
+      )
+      set(
+        values,
+        'recovery',
+        snapshot.car.recoverySeconds > 0
+          ? `${snapshot.car.recoverySeconds.toFixed(1)} S`
           : 'READY',
       )
       set(values, 'offroad', `${snapshot.telemetry.offroadTime.toFixed(1)} S`)

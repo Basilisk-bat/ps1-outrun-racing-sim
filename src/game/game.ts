@@ -26,8 +26,13 @@ declare global {
       styleCombo: number
       bestStyleCombo: number
       styleRank: string
+      boostMeter: number
+      boostActive: boolean
+      recoverySeconds: number
       trafficVehicles: number
       trafficHits: number
+      trafficNearMisses: number
+      lastNearMissVehicleId: string | null
       nearestTrafficDistance: number | null
       nearestTrafficLane: number | null
       difficultyId: string
@@ -76,8 +81,13 @@ export function bootRacingGame(host: HTMLElement): void {
       styleCombo: state.telemetry.styleCombo,
       bestStyleCombo: state.telemetry.bestStyleCombo,
       styleRank: state.telemetry.styleRank,
+      boostMeter: state.car.boostMeter,
+      boostActive: state.car.boostActive,
+      recoverySeconds: state.car.recoverySeconds,
       trafficVehicles: state.traffic.vehicleCount,
       trafficHits: state.traffic.hitCount,
+      trafficNearMisses: state.traffic.nearMissCount,
+      lastNearMissVehicleId: state.traffic.lastNearMissVehicleId,
       nearestTrafficDistance: state.traffic.nearest?.distanceAhead ?? null,
       nearestTrafficLane: state.traffic.nearest?.lane ?? null,
       difficultyId: state.level.difficulty.id,

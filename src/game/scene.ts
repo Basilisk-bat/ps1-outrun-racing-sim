@@ -68,6 +68,7 @@ export function createSceneRenderer(
 
     car.position.set(carX, carY, carZ)
     car.rotation.set(0, snapshot.car.heading, -snapshot.car.drift * 0.2)
+    updatePlayerBoostFx(car, snapshot.car.boostActive, snapshot.car.boostMeter)
     updateLoopedRidgeWorld(ridgeWorld, snapshot.car.distance, snapshot.level.totalLength)
     updateOverlookCity(city, snapshot)
     updateTrafficMeshes(traffic.entries, snapshot)
@@ -474,6 +475,7 @@ function createPlayerCar(): THREE.Group {
   const bodyMaterial = new THREE.MeshLambertMaterial({ color: 0xff2f87, flatShading: true })
   const glassMaterial = new THREE.MeshLambertMaterial({ color: 0x89f7ff, flatShading: true })
   const tireMaterial = new THREE.MeshLambertMaterial({ color: 0x11111d, flatShading: true })
+  const flameMaterial = new THREE.MeshBasicMaterial({ color: 0xffd36e })
   const body = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.9, 5.2), bodyMaterial)
   const cabin = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.72, 2.1), glassMaterial)
   cabin.position.set(0, 0.74, -0.62)
@@ -487,7 +489,32 @@ function createPlayerCar(): THREE.Group {
     }
   }
 
+  const boostFlames: THREE.Mesh[] = []
+  for (const x of [-0.78, 0.78]) {
+    const flame = new THREE.Mesh(new THREE.ConeGeometry(0.42, 2.1, 5), flameMaterial)
+    flame.name = 'boost-flame'
+    flame.position.set(x, 0.1, 3.28)
+    flame.rotation.x = Math.PI / 2
+    flame.visible = false
+    boostFlames.push(flame)
+    group.add(flame)
+  }
+  group.userData.boostFlames = boostFlames
+
   return group
+}
+
+function updatePlayerBoostFx(car: THREE.Group, boostActive: boolean, boostMeter: number): void {
+  const boostFlames = car.userData.boostFlames as THREE.Mesh[] | undefined
+  if (!boostFlames) {
+    return
+  }
+
+  const boostScale = 0.75 + Math.min(0.65, boostMeter / 160)
+  for (const flame of boostFlames) {
+    flame.visible = boostActive
+    flame.scale.set(1, boostScale, 1)
+  }
 }
 
 function createHorizon(): THREE.Group {

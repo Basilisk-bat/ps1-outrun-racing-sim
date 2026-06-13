@@ -1,6 +1,7 @@
 export interface InputState {
   accelerate: boolean
   brake: boolean
+  boost: boolean
   steer: -1 | 0 | 1
   reset: boolean
 }
@@ -16,6 +17,9 @@ const KEY_BINDINGS: Record<string, keyof Omit<InputState, 'steer'>> = {
   KeyW: 'accelerate',
   ArrowDown: 'brake',
   KeyS: 'brake',
+  Space: 'boost',
+  ShiftLeft: 'boost',
+  KeyE: 'boost',
   KeyR: 'reset',
 }
 
@@ -23,6 +27,7 @@ export function createInputState(): InputState {
   return {
     accelerate: false,
     brake: false,
+    boost: false,
     steer: 0,
     reset: false,
   }

@@ -5,8 +5,11 @@ import type { LevelManifest, TrafficVehicle } from './track.ts'
 
 export interface TrafficRuntimeState {
   hitCount: number
+  nearMissCount: number
   lastHitVehicleId?: string
   lastHitAt?: number
+  lastNearMissVehicleId?: string
+  lastNearMissAt?: number
 }
 
 export interface TrafficVehiclePose {
@@ -30,30 +33,42 @@ export interface TrafficContact {
   vehicle?: TrafficVehicle
   distanceDelta?: number
   lateralDelta?: number
+  nearMissVehicle?: TrafficVehicle
+  nearMissDistanceDelta?: number
+  nearMissLateralDelta?: number
 }
 
 export interface TrafficSnapshot {
   vehicleCount: number
   hitCount: number
+  nearMissCount: number
   lastHitVehicleId: string | null
   lastHitAt: number | null
+  lastNearMissVehicleId: string | null
+  lastNearMissAt: number | null
   nearest: TrafficProximity | null
 }
 
 const TRAFFIC_LANE_FACTOR = 0.28
 const TRAFFIC_HIT_LENGTH = 5.4
 const TRAFFIC_HIT_WIDTH = 2.45
+const TRAFFIC_NEAR_MISS_MAX_WIDTH = 5.4
+const TRAFFIC_NEAR_MISS_COOLDOWN = 1.35
 
 export function createTrafficRuntimeState(): TrafficRuntimeState {
   return {
     hitCount: 0,
+    nearMissCount: 0,
   }
 }
 
 export function resetTrafficRuntimeState(runtime: TrafficRuntimeState): void {
   runtime.hitCount = 0
+  runtime.nearMissCount = 0
   delete runtime.lastHitVehicleId
   delete runtime.lastHitAt
+  delete runtime.lastNearMissVehicleId
+  delete runtime.lastNearMissAt
 }
 
 export function resolveTrafficContact(
@@ -68,11 +83,20 @@ export function resolveTrafficContact(
 
   const contact = findTrafficContact(level, car, elapsed)
   if (!contact.vehicle) {
-    return contact
+    const nearMiss = findTrafficNearMiss(runtime, level, car, elapsed)
+    if (nearMiss.nearMissVehicle) {
+      runtime.nearMissCount += 1
+      runtime.lastNearMissVehicleId = nearMiss.nearMissVehicle.id
+      runtime.lastNearMissAt = elapsed
+    }
+    return nearMiss
   }
 
   car.collisionCount += 1
   car.collisionCooldown = CAR_LIMITS.collisionCooldown
+  car.recoverySeconds = CAR_LIMITS.recoverySeconds
+  car.boostActive = false
+  car.boostMeter = Math.max(0, car.boostMeter - CAR_LIMITS.collisionBoostPenalty)
   car.speed = Math.max(18, Math.min(car.speed * 0.52, contact.vehicle.speed + 12))
   car.lateralVelocity = trafficPushDirection(contact) * Math.max(4, Math.abs(car.lateralVelocity) * 0.4)
   car.lateral += trafficPushDirection(contact) * 0.7
@@ -93,8 +117,11 @@ export function createTrafficSnapshot(
   return {
     vehicleCount: level.traffic.length,
     hitCount: runtime.hitCount,
+    nearMissCount: runtime.nearMissCount,
     lastHitVehicleId: runtime.lastHitVehicleId ?? null,
     lastHitAt: runtime.lastHitAt ?? null,
+    lastNearMissVehicleId: runtime.lastNearMissVehicleId ?? null,
+    lastNearMissAt: runtime.lastNearMissAt ?? null,
     nearest: nearestTraffic(level, car.distance, elapsed),
   }
 }
@@ -166,6 +193,43 @@ function findTrafficContact(
     .sort((a, b) => Math.abs(a.distanceDelta) - Math.abs(b.distanceDelta))
 
   return contacts[0] ?? { collided: false }
+}
+
+function findTrafficNearMiss(
+  runtime: TrafficRuntimeState,
+  level: LevelManifest,
+  car: CarState,
+  elapsed: number,
+): TrafficContact {
+  const nearMisses = level.traffic
+    .map((vehicle) => {
+      const trafficDistance = trafficDistanceAt(level, vehicle, elapsed)
+      const distanceDelta = signedLapDelta(trafficDistance, car.distance, level.totalLength)
+      const laneLateral = trafficLaneLateral(level, vehicle, trafficDistance)
+      const lateralDelta = car.lateral - laneLateral
+      const recentlyAwarded =
+        runtime.lastNearMissVehicleId === vehicle.id &&
+        runtime.lastNearMissAt !== undefined &&
+        elapsed - runtime.lastNearMissAt < TRAFFIC_NEAR_MISS_COOLDOWN
+
+      return {
+        collided: false,
+        nearMissVehicle: vehicle,
+        nearMissDistanceDelta: distanceDelta,
+        nearMissLateralDelta: lateralDelta,
+        nearMiss:
+          !recentlyAwarded &&
+          car.speed > vehicle.speed + 10 &&
+          distanceDelta >= -1.5 &&
+          distanceDelta <= TRAFFIC_HIT_LENGTH + 1.8 &&
+          Math.abs(lateralDelta) > TRAFFIC_HIT_WIDTH &&
+          Math.abs(lateralDelta) <= TRAFFIC_NEAR_MISS_MAX_WIDTH,
+      }
+    })
+    .filter((contact) => contact.nearMiss)
+    .sort((a, b) => Math.abs(a.nearMissDistanceDelta ?? 0) - Math.abs(b.nearMissDistanceDelta ?? 0))
+
+  return nearMisses[0] ?? { collided: false }
 }
 
 function trafficDistanceAt(

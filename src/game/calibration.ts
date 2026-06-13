@@ -99,6 +99,7 @@ function createCalibrationInput(
   return {
     accelerate: speedError > -2,
     brake: speedError < -8 || Math.abs(snapshot.car.lateral) > snapshot.track.roadWidth * 0.55,
+    boost: false,
     steer: quantizeSteer(steerDemand),
     reset: false,
   }

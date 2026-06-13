@@ -5,15 +5,16 @@ import type { LevelManifest, RouteDifficultyProfile } from './track.ts'
 export type TelemetryEventType =
   | 'checkpoint'
   | 'collision'
+  | 'near-miss'
   | 'offroad'
   | 'reset'
   | 'lap'
   | 'style'
 export type CheckpointGrade = 'gold' | 'silver' | 'bronze' | 'miss'
-export type StyleRank = 'neutral' | 'clean' | 'drift' | 'risk'
+export type StyleRank = 'neutral' | 'clean' | 'drift' | 'risk' | 'near-miss'
 
 export interface StyleAward {
-  kind: 'clean' | 'drift'
+  kind: 'clean' | 'drift' | 'near-miss'
   points: number
   multiplier: number
 }
@@ -101,6 +102,7 @@ export function updateTelemetry(
   dt: number,
   collided: boolean,
   collisionDetails?: string,
+  nearMissDetails?: string,
 ): void {
   telemetry.elapsed += dt
   telemetry.topSpeed = Math.max(telemetry.topSpeed, car.speed)
@@ -127,6 +129,12 @@ export function updateTelemetry(
         ? `${award.kind.toUpperCase()} +${award.points} x${award.multiplier.toFixed(1)}`
         : `STYLE +${styleAward}`,
     )
+  }
+
+  if (nearMissDetails) {
+    const nearMissPoints = 150 + Math.round(Math.min(80, car.speed * 0.45))
+    applyStyleAward(telemetry, 'near-miss', nearMissPoints, 1.4)
+    pushTelemetryEvent(telemetry, car, 'near-miss', `${nearMissDetails} +${nearMissPoints}`)
   }
 
   const checkpointIndex = telemetry.nextCheckpointIndex
@@ -324,6 +332,24 @@ function updateStyleScoring(
   }
 
   return points
+}
+
+function applyStyleAward(
+  telemetry: TelemetryState,
+  kind: StyleAward['kind'],
+  points: number,
+  multiplier: number,
+): void {
+  telemetry.styleScore += points
+  telemetry.styleCombo += points
+  telemetry.bestStyleCombo = Math.max(telemetry.bestStyleCombo, telemetry.styleCombo)
+  telemetry.score = telemetry.checkpointScore + telemetry.styleScore
+  telemetry.lastStyleAward = {
+    kind,
+    points,
+    multiplier,
+  }
+  telemetry.styleRank = kind === 'near-miss' ? 'near-miss' : telemetry.styleRank
 }
 
 function shouldEmitSparseEvent(
