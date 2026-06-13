@@ -42,8 +42,99 @@ describe('telemetry', () => {
     expect(telemetry.lastCheckpoint?.actualSeconds).toBeCloseTo(firstSection.targetSeconds - 0.35)
     expect(telemetry.lastCheckpoint?.deltaSeconds).toBeCloseTo(-0.35)
     expect(telemetry.lastCheckpoint?.grade).toBe('gold')
+    expect(telemetry.checkpointScore).toBe(telemetry.lastCheckpoint?.score)
+    expect(telemetry.styleScore).toBe(0)
     expect(telemetry.score).toBe(telemetry.lastCheckpoint?.score)
     expect(telemetry.events.at(-1)?.details).toContain('GOLD')
+  })
+
+  it('adds deterministic style points for controlled drift and clean driving', () => {
+    const level = createNeonRidgeLevel()
+    const car = createInitialCarState()
+    const telemetry = createTelemetryState()
+    const dt = 1 / 60
+
+    car.speed = 92
+    car.drift = 0.42
+    car.lateral = 2
+
+    for (let frame = 0; frame < 120; frame += 1) {
+      updateTelemetry(telemetry, level, car, dt, false)
+    }
+
+    const driftScore = telemetry.styleScore
+
+    expect(telemetry.styleRank).toBe('drift')
+    expect(driftScore).toBeGreaterThan(90)
+    expect(telemetry.score).toBe(telemetry.checkpointScore + telemetry.styleScore)
+    expect(telemetry.styleCombo).toBe(telemetry.styleScore)
+    expect(telemetry.bestStyleCombo).toBe(telemetry.styleCombo)
+    expect(telemetry.events.some((event) => event.type === 'style')).toBe(true)
+
+    car.drift = 0
+    car.lateral = 0
+
+    for (let frame = 0; frame < 60; frame += 1) {
+      updateTelemetry(telemetry, level, car, dt, false)
+    }
+
+    expect(telemetry.styleRank).toBe('clean')
+    expect(telemetry.styleScore).toBeGreaterThan(driftScore)
+  })
+
+  it('keeps checkpoint score separate from style score', () => {
+    const level = createNeonRidgeLevel()
+    const car = createInitialCarState()
+    const telemetry = createTelemetryState()
+    const firstSection = level.sections[0]
+    const dt = 1 / 60
+
+    telemetry.styleScore = 125
+    telemetry.score = 125
+    telemetry.elapsed = firstSection.targetSeconds + 1 - dt
+    car.speed = 96
+    car.distance = firstSection.checkpoint + 1
+    updateTelemetry(telemetry, level, car, dt, false)
+
+    expect(telemetry.lastCheckpoint?.score).toBeGreaterThan(0)
+    expect(telemetry.checkpointScore).toBe(telemetry.lastCheckpoint?.score)
+    expect(telemetry.score).toBe(telemetry.checkpointScore + 125)
+  })
+
+  it('breaks the style chain on offroad and collision states', () => {
+    const level = createNeonRidgeLevel()
+    const car = createInitialCarState()
+    const telemetry = createTelemetryState()
+
+    telemetry.styleCombo = 240
+    telemetry.bestStyleCombo = 240
+    telemetry.cleanDrivingSeconds = 3
+    telemetry.styleAccumulator = 0.75
+    telemetry.lastStyleAward = {
+      kind: 'drift',
+      points: 4,
+      multiplier: 1.2,
+    }
+    car.speed = 90
+    car.offroad = true
+
+    updateTelemetry(telemetry, level, car, 1 / 60, false)
+
+    expect(telemetry.styleCombo).toBe(0)
+    expect(telemetry.bestStyleCombo).toBe(240)
+    expect(telemetry.cleanDrivingSeconds).toBe(0)
+    expect(telemetry.styleAccumulator).toBe(0)
+    expect(telemetry.styleRank).toBe('risk')
+    expect(telemetry.lastStyleAward).toBeUndefined()
+
+    telemetry.styleCombo = 90
+    telemetry.cleanDrivingSeconds = 2
+    car.offroad = false
+    updateTelemetry(telemetry, level, car, 1 / 60, true)
+
+    expect(telemetry.styleCombo).toBe(0)
+    expect(telemetry.cleanDrivingSeconds).toBe(0)
+    expect(telemetry.styleRank).toBe('neutral')
   })
 
   it('grades and scores checkpoint penalties deterministically', () => {
@@ -73,6 +164,18 @@ describe('telemetry', () => {
     telemetry.topSpeed = 80
     telemetry.offroadTime = 2
     telemetry.nextCheckpointIndex = 2
+    telemetry.checkpointScore = 800
+    telemetry.styleScore = 120
+    telemetry.styleCombo = 60
+    telemetry.bestStyleCombo = 160
+    telemetry.cleanDrivingSeconds = 4
+    telemetry.styleRank = 'drift'
+    telemetry.styleAccumulator = 0.5
+    telemetry.lastStyleAward = {
+      kind: 'drift',
+      points: 4,
+      multiplier: 1.1,
+    }
     telemetry.score = 800
     telemetry.checkpointSplits = [
       {
@@ -99,6 +202,14 @@ describe('telemetry', () => {
     expect(telemetry.topSpeed).toBe(0)
     expect(telemetry.offroadTime).toBe(0)
     expect(telemetry.nextCheckpointIndex).toBe(0)
+    expect(telemetry.checkpointScore).toBe(0)
+    expect(telemetry.styleScore).toBe(0)
+    expect(telemetry.styleCombo).toBe(0)
+    expect(telemetry.bestStyleCombo).toBe(0)
+    expect(telemetry.cleanDrivingSeconds).toBe(0)
+    expect(telemetry.styleRank).toBe('neutral')
+    expect(telemetry.styleAccumulator).toBe(0)
+    expect(telemetry.lastStyleAward).toBeUndefined()
     expect(telemetry.score).toBe(0)
     expect(telemetry.checkpointSplits).toEqual([])
     expect(telemetry.lastCheckpoint).toBeUndefined()

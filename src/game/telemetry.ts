@@ -1,8 +1,21 @@
 import type { CarState } from './car.ts'
 import type { LevelManifest } from './track.ts'
 
-export type TelemetryEventType = 'checkpoint' | 'collision' | 'offroad' | 'reset' | 'lap'
+export type TelemetryEventType =
+  | 'checkpoint'
+  | 'collision'
+  | 'offroad'
+  | 'reset'
+  | 'lap'
+  | 'style'
 export type CheckpointGrade = 'gold' | 'silver' | 'bronze' | 'miss'
+export type StyleRank = 'neutral' | 'clean' | 'drift' | 'risk'
+
+export interface StyleAward {
+  kind: 'clean' | 'drift'
+  points: number
+  multiplier: number
+}
 
 export interface TelemetryEvent {
   type: TelemetryEventType
@@ -36,6 +49,14 @@ export interface TelemetryState {
   nextCheckpointIndex: number
   currentLap: number
   checkpointSplits: CheckpointSplit[]
+  checkpointScore: number
+  styleScore: number
+  styleCombo: number
+  bestStyleCombo: number
+  cleanDrivingSeconds: number
+  styleRank: StyleRank
+  styleAccumulator: number
+  lastStyleAward?: StyleAward
   score: number
   lastCheckpoint?: CheckpointSplit
   collisionCountAtLastCheckpoint: number
@@ -58,6 +79,13 @@ export function createTelemetryState(): TelemetryState {
     nextCheckpointIndex: 0,
     currentLap: 0,
     checkpointSplits: [],
+    checkpointScore: 0,
+    styleScore: 0,
+    styleCombo: 0,
+    bestStyleCombo: 0,
+    cleanDrivingSeconds: 0,
+    styleRank: 'neutral',
+    styleAccumulator: 0,
     score: 0,
     collisionCountAtLastCheckpoint: 0,
     offroadTimeAtLastCheckpoint: 0,
@@ -85,6 +113,19 @@ export function updateTelemetry(
     pushTelemetryEvent(telemetry, car, 'collision')
   }
 
+  const styleAward = updateStyleScoring(telemetry, car, dt, collided)
+  if (styleAward > 0 && shouldEmitSparseEvent(telemetry, 'style', 1.1)) {
+    const award = telemetry.lastStyleAward
+    pushTelemetryEvent(
+      telemetry,
+      car,
+      'style',
+      award
+        ? `${award.kind.toUpperCase()} +${award.points} x${award.multiplier.toFixed(1)}`
+        : `STYLE +${styleAward}`,
+    )
+  }
+
   const checkpointIndex = telemetry.nextCheckpointIndex
   const checkpoint = level.checkpoints[checkpointIndex]
   if (checkpoint !== undefined && car.distance >= checkpoint + level.totalLength * telemetry.currentLap) {
@@ -93,7 +134,6 @@ export function updateTelemetry(
     if (telemetry.checkpointSplits.length > 16) {
       telemetry.checkpointSplits.shift()
     }
-    telemetry.score = split.cumulativeScore
     telemetry.lastCheckpoint = split
     telemetry.collisionCountAtLastCheckpoint = car.collisionCount
     telemetry.offroadTimeAtLastCheckpoint = telemetry.offroadTime
@@ -103,6 +143,8 @@ export function updateTelemetry(
       'checkpoint',
       `CP ${checkpointIndex + 1} ${split.grade.toUpperCase()} ${formatSigned(split.deltaSeconds)}s`,
     )
+    telemetry.checkpointScore = split.cumulativeScore
+    telemetry.score = telemetry.checkpointScore + telemetry.styleScore
     telemetry.nextCheckpointIndex += 1
   }
 
@@ -140,7 +182,15 @@ export function resetTelemetry(telemetry: TelemetryState, car: CarState): void {
   telemetry.nextCheckpointIndex = 0
   telemetry.currentLap = 0
   telemetry.checkpointSplits = []
+  telemetry.checkpointScore = 0
+  telemetry.styleScore = 0
+  telemetry.styleCombo = 0
+  telemetry.bestStyleCombo = 0
+  telemetry.cleanDrivingSeconds = 0
+  telemetry.styleRank = 'neutral'
+  telemetry.styleAccumulator = 0
   telemetry.score = 0
+  delete telemetry.lastStyleAward
   delete telemetry.lastCheckpoint
   telemetry.collisionCountAtLastCheckpoint = 0
   telemetry.offroadTimeAtLastCheckpoint = 0
@@ -197,10 +247,70 @@ function createCheckpointSplit(
     deltaSeconds,
     grade: gradeCheckpoint(deltaSeconds),
     score,
-    cumulativeScore: telemetry.score + score,
+    cumulativeScore: telemetry.checkpointScore + score,
     collisionPenalty,
     offroadPenaltySeconds,
   }
+}
+
+function updateStyleScoring(
+  telemetry: TelemetryState,
+  car: CarState,
+  dt: number,
+  collided: boolean,
+): number {
+  if (collided || car.offroad) {
+    telemetry.styleCombo = 0
+    telemetry.cleanDrivingSeconds = 0
+    telemetry.styleAccumulator = 0
+    telemetry.styleRank = car.offroad ? 'risk' : 'neutral'
+    delete telemetry.lastStyleAward
+    return 0
+  }
+
+  telemetry.cleanDrivingSeconds += dt
+
+  const driftIntensity = Math.abs(car.drift)
+  const speedRatio = clamp(car.speed / 110, 0, 1.25)
+  const controlledDrift = car.speed >= 52 && driftIntensity >= 0.24
+  const cleanLine = car.speed >= 70 && Math.abs(car.lateral) <= 4.6
+  const comboMultiplier = 1 + Math.min(1.25, telemetry.styleCombo / 900)
+
+  let pointsPerSecond = 0
+  let kind: StyleAward['kind'] | undefined
+
+  if (controlledDrift) {
+    pointsPerSecond = (26 + driftIntensity * 88) * speedRatio
+    telemetry.styleRank = 'drift'
+    kind = 'drift'
+  } else if (cleanLine) {
+    pointsPerSecond = Math.min(34, 10 + telemetry.cleanDrivingSeconds * 3.2) * speedRatio
+    telemetry.styleRank = 'clean'
+    kind = 'clean'
+  } else {
+    telemetry.styleRank = 'neutral'
+  }
+
+  telemetry.styleAccumulator += pointsPerSecond * comboMultiplier * dt
+  const points = Math.floor(telemetry.styleAccumulator)
+
+  if (points <= 0 || !kind) {
+    telemetry.score = telemetry.checkpointScore + telemetry.styleScore
+    return 0
+  }
+
+  telemetry.styleAccumulator -= points
+  telemetry.styleScore += points
+  telemetry.styleCombo += points
+  telemetry.bestStyleCombo = Math.max(telemetry.bestStyleCombo, telemetry.styleCombo)
+  telemetry.score = telemetry.checkpointScore + telemetry.styleScore
+  telemetry.lastStyleAward = {
+    kind,
+    points,
+    multiplier: comboMultiplier,
+  }
+
+  return points
 }
 
 function shouldEmitSparseEvent(
@@ -217,4 +327,8 @@ function shouldEmitSparseEvent(
 function formatSigned(value: number): string {
   const sign = value > 0 ? '+' : ''
   return `${sign}${value.toFixed(1)}`
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value))
 }

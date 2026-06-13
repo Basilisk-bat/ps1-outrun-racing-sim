@@ -15,6 +15,7 @@ export function createHud(host: HTMLElement): Hud {
       ${row('CP', 'checkpoint')}
       ${row('SEC', 'section')}
       ${row('GRD', 'grade')}
+      ${row('STY', 'style')}
       ${row('HIT', 'collisions')}
     </section>
     <section class="debug-panel" data-testid="debug-panel" aria-label="Engine debug">
@@ -22,6 +23,8 @@ export function createHud(host: HTMLElement): Hud {
       ${row('PAR', 'target')}
       ${row('SPL', 'split')}
       ${row('SCR', 'score')}
+      ${row('DRF', 'styleScore')}
+      ${row('CHN', 'styleCombo')}
       ${row('OFF', 'offroad')}
       ${row('LAT', 'lateral')}
       ${row('LAP', 'lap')}
@@ -44,6 +47,7 @@ export function createHud(host: HTMLElement): Hud {
       set(values, 'checkpoint', `${Math.floor(snapshot.nextCheckpoint)} M`)
       set(values, 'section', snapshot.currentSection.title.toUpperCase())
       set(values, 'grade', snapshot.telemetry.lastCheckpoint?.grade.toUpperCase() ?? 'READY')
+      set(values, 'style', snapshot.telemetry.styleRank.toUpperCase())
       set(values, 'collisions', `${snapshot.car.collisionCount}`)
       set(values, 'topSpeed', `${Math.round(snapshot.telemetry.topSpeed)} KMH`)
       set(values, 'target', `${snapshot.checkpointTargetSeconds.toFixed(1)} S`)
@@ -55,6 +59,8 @@ export function createHud(host: HTMLElement): Hud {
           : '0.0 S',
       )
       set(values, 'score', `${snapshot.telemetry.score}`)
+      set(values, 'styleScore', `${snapshot.telemetry.styleScore}`)
+      set(values, 'styleCombo', `${snapshot.telemetry.styleCombo}`)
       set(values, 'offroad', `${snapshot.telemetry.offroadTime.toFixed(1)} S`)
       set(values, 'lateral', snapshot.car.lateral.toFixed(1))
       set(values, 'lap', `${snapshot.telemetry.currentLap + 1}`)

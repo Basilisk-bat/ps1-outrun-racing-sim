@@ -7,9 +7,9 @@ Engine-first milestone for `ps1-outrun-racing-sim`: an original PS1-style Three.
 - Full-screen Three.js playable surface.
 - Low-poly procedural highway with named route sections, curves, elevation, road stripes, section-authored roadside props, horizon, and a player car placeholder.
 - Fixed-step car simulation for acceleration, braking, steering, drift, offroad, and collision hooks.
-- HUD/debug panels for speed, distance, checkpoint, route section, split grade, target time, checkpoint score, collision, top speed, offroad time, lateral position, and lap.
-- Checkpoint split scoring with cumulative route targets, grades, collision/offroad penalties, and bounded telemetry history.
-- Unit tests for track generation, route-section pacing, car dynamics, telemetry, and checkpoint scoring.
+- HUD/debug panels for speed, distance, checkpoint, route section, split grade, style rank, target time, checkpoint score, drift score, style chain, collision, top speed, offroad time, lateral position, and lap.
+- Checkpoint split scoring with cumulative route targets, grades, collision/offroad penalties, deterministic drift/clean-line style scoring, chain breaks, and bounded telemetry history.
+- Unit tests for track generation, route-section pacing, car dynamics, telemetry, checkpoint scoring, and score economy behavior.
 - Playwright QA for canvas rendering, input response, and HUD framing.
 
 ## Controls
@@ -37,7 +37,7 @@ All milestone visuals are primitive meshes, procedural geometry, CSS, and local 
 
 ## Next Milestones
 
-- Level tuning pass: route difficulty balance, target-time calibration, and score economy balancing.
+- Level tuning pass: route difficulty balance, target-time calibration, and scoring thresholds against real playthrough traces.
 - Asset pass: original cover art, car silhouettes, road-surface textures, sky treatments, and prop sets.
 - Gameplay pass: traffic, boost/drift scoring, route splits, lap goals, and failure/recovery states.
 - Audio pass: original retro engine loop, UI tones, checkpoint sounds, and optional music.

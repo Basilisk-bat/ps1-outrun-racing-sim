@@ -14,6 +14,11 @@ declare global {
       collisions: number
       offroad: boolean
       score: number
+      checkpointScore: number
+      styleScore: number
+      styleCombo: number
+      bestStyleCombo: number
+      styleRank: string
       checkpointGrade: string | null
       checkpointDelta: number | null
     }
@@ -47,6 +52,11 @@ export function bootRacingGame(host: HTMLElement): void {
       collisions: state.car.collisionCount,
       offroad: state.car.offroad,
       score: state.telemetry.score,
+      checkpointScore: state.telemetry.checkpointScore,
+      styleScore: state.telemetry.styleScore,
+      styleCombo: state.telemetry.styleCombo,
+      bestStyleCombo: state.telemetry.bestStyleCombo,
+      styleRank: state.telemetry.styleRank,
       checkpointGrade: state.telemetry.lastCheckpoint?.grade ?? null,
       checkpointDelta: state.telemetry.lastCheckpoint?.deltaSeconds ?? null,
     }
