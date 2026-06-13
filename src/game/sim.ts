@@ -1,7 +1,7 @@
 import { createInitialCarState, resetCar, updateCar } from './car.ts'
 import type { InputState } from './input.ts'
 import {
-  checkpointTargetSeconds,
+  checkpointTargetSeconds as routeCheckpointTargetSeconds,
   createNeonRidgeLevel,
   currentRouteSection,
   nextCheckpoint,
@@ -53,7 +53,19 @@ export class RacingSim {
       currentSection: currentRouteSection(this.level, this.car.distance),
       telemetry: this.telemetry,
       nextCheckpoint: nextCheckpoint(this.level, this.car.distance),
-      checkpointTargetSeconds: checkpointTargetSeconds(this.level, this.car.distance),
+      checkpointTargetSeconds: cumulativeCheckpointTargetSeconds(
+        this.level,
+        this.car.distance,
+        this.telemetry.currentLap,
+      ),
     }
   }
+}
+
+function cumulativeCheckpointTargetSeconds(
+  level: LevelManifest,
+  distance: number,
+  currentLap: number,
+): number {
+  return routeCheckpointTargetSeconds(level, distance) + currentLap * level.targetTimeSeconds
 }

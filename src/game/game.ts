@@ -13,6 +13,9 @@ declare global {
       lateral: number
       collisions: number
       offroad: boolean
+      score: number
+      checkpointGrade: string | null
+      checkpointDelta: number | null
     }
   }
 }
@@ -43,6 +46,9 @@ export function bootRacingGame(host: HTMLElement): void {
       lateral: state.car.lateral,
       collisions: state.car.collisionCount,
       offroad: state.car.offroad,
+      score: state.telemetry.score,
+      checkpointGrade: state.telemetry.lastCheckpoint?.grade ?? null,
+      checkpointDelta: state.telemetry.lastCheckpoint?.deltaSeconds ?? null,
     }
     shell.dataset.ready = 'true'
     shell.dataset.speed = state.car.speed.toFixed(2)

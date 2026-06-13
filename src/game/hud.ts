@@ -14,11 +14,14 @@ export function createHud(host: HTMLElement): Hud {
       ${row('DST', 'distance')}
       ${row('CP', 'checkpoint')}
       ${row('SEC', 'section')}
+      ${row('GRD', 'grade')}
       ${row('HIT', 'collisions')}
     </section>
     <section class="debug-panel" data-testid="debug-panel" aria-label="Engine debug">
       ${row('TOP', 'topSpeed')}
       ${row('PAR', 'target')}
+      ${row('SPL', 'split')}
+      ${row('SCR', 'score')}
       ${row('OFF', 'offroad')}
       ${row('LAT', 'lateral')}
       ${row('LAP', 'lap')}
@@ -40,9 +43,18 @@ export function createHud(host: HTMLElement): Hud {
       set(values, 'distance', `${Math.floor(snapshot.car.distance)} M`)
       set(values, 'checkpoint', `${Math.floor(snapshot.nextCheckpoint)} M`)
       set(values, 'section', snapshot.currentSection.title.toUpperCase())
+      set(values, 'grade', snapshot.telemetry.lastCheckpoint?.grade.toUpperCase() ?? 'READY')
       set(values, 'collisions', `${snapshot.car.collisionCount}`)
       set(values, 'topSpeed', `${Math.round(snapshot.telemetry.topSpeed)} KMH`)
       set(values, 'target', `${snapshot.checkpointTargetSeconds.toFixed(1)} S`)
+      set(
+        values,
+        'split',
+        snapshot.telemetry.lastCheckpoint
+          ? `${formatSigned(snapshot.telemetry.lastCheckpoint.deltaSeconds)} S`
+          : '0.0 S',
+      )
+      set(values, 'score', `${snapshot.telemetry.score}`)
       set(values, 'offroad', `${snapshot.telemetry.offroadTime.toFixed(1)} S`)
       set(values, 'lateral', snapshot.car.lateral.toFixed(1))
       set(values, 'lap', `${snapshot.telemetry.currentLap + 1}`)
@@ -67,4 +79,9 @@ function set(values: Map<string, HTMLElement>, key: string, value: string): void
   if (element) {
     element.textContent = value
   }
+}
+
+function formatSigned(value: number): string {
+  const sign = value > 0 ? '+' : ''
+  return `${sign}${value.toFixed(1)}`
 }
