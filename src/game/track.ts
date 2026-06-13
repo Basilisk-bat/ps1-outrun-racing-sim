@@ -8,7 +8,14 @@ export interface TrackSegment {
   sectionId: string
 }
 
-export type RoadsidePropKind = 'palm' | 'sign' | 'crystal'
+export type RoadsidePropKind =
+  | 'palm'
+  | 'sign'
+  | 'crystal'
+  | 'holo-billboard'
+  | 'chevron'
+  | 'solar-arch'
+  | 'radio-tower'
 
 export type TrafficVehicleKind = 'coupe' | 'van' | 'truck'
 
@@ -40,6 +47,17 @@ export interface DriftZone {
   end: number
   targetScore: number
   bonusScore: number
+  color: string
+}
+
+export interface RecoveryGate {
+  id: string
+  sectionId: string
+  title: string
+  distance: number
+  radius: number
+  boostAward: number
+  timeAwardSeconds: number
   color: string
 }
 
@@ -83,6 +101,7 @@ export interface LevelManifest {
   props: RoadsideProp[]
   traffic: TrafficVehicle[]
   driftZones: DriftZone[]
+  recoveryGates: RecoveryGate[]
 }
 
 export interface TrackSample {
@@ -157,7 +176,7 @@ const SECTION_THEMES: SectionTheme[] = [
     id: 'city-overlook',
     title: 'City Overlook',
     durationSeconds: 4.2,
-    signatureProp: 'palm',
+    signatureProp: 'holo-billboard',
     primaryColor: '#ff5ab3',
     accentColor: '#ffe66f',
     propStep: 56,
@@ -170,7 +189,7 @@ const SECTION_THEMES: SectionTheme[] = [
     id: 'switchback-arc',
     title: 'Switchback Arc',
     durationSeconds: 3.3,
-    signatureProp: 'sign',
+    signatureProp: 'chevron',
     primaryColor: '#4ee7ff',
     accentColor: '#ff8bd1',
     propStep: 48,
@@ -183,7 +202,7 @@ const SECTION_THEMES: SectionTheme[] = [
     id: 'neon-causeway',
     title: 'Neon Causeway',
     durationSeconds: 3.3,
-    signatureProp: 'crystal',
+    signatureProp: 'solar-arch',
     primaryColor: '#7fff92',
     accentColor: '#b57cff',
     propStep: 52,
@@ -196,7 +215,7 @@ const SECTION_THEMES: SectionTheme[] = [
     id: 'radio-crest',
     title: 'Radio Crest',
     durationSeconds: 3.3,
-    signatureProp: 'sign',
+    signatureProp: 'radio-tower',
     primaryColor: '#ffe66f',
     accentColor: '#4ee7ff',
     propStep: 44,
@@ -240,6 +259,7 @@ export function createProceduralTrack(
     props: createRoadsideProps(sections, seed),
     traffic: createTrafficVehicles(sections, seed),
     driftZones: createDriftZones(sections, difficulty, seed),
+    recoveryGates: createRecoveryGates(sections, difficulty, seed),
   }
 }
 
@@ -303,6 +323,16 @@ export function currentDriftZone(level: LevelManifest, distance: number): DriftZ
   return level.driftZones.find((zone) => lapDistance >= zone.start && lapDistance < zone.end)
 }
 
+export function currentRecoveryGate(
+  level: LevelManifest,
+  distance: number,
+): RecoveryGate | undefined {
+  const lapDistance = wrapDistance(distance, level.totalLength)
+  return level.recoveryGates.find(
+    (gate) => Math.abs(lapDistance - gate.distance) <= gate.radius,
+  )
+}
+
 export function checkpointTargetSeconds(level: LevelManifest, distance: number): number {
   const checkpoint = nextCheckpoint(level, distance)
   return (
@@ -342,6 +372,34 @@ function createDriftZones(
       targetScore,
       bonusScore: Math.round(targetScore * 0.55),
       color: section.accentColor,
+    }
+  })
+}
+
+function createRecoveryGates(
+  sections: RouteSection[],
+  difficulty: RouteDifficultyProfile,
+  seed: number,
+): RecoveryGate[] {
+  const canonical = isCanonicalTrack(seed, sections.length)
+
+  return sections.map((section, index) => {
+    const length = section.end - section.start
+    const distanceRatio = canonical
+      ? 0.84 - (index % 2) * 0.035
+      : seededRange(seed, index, 101, 0.76, 0.9)
+    const pressureScale =
+      difficulty.id === 'rival' ? 1.2 : difficulty.id === 'touring' ? 0.88 : 1
+
+    return {
+      id: `${section.id}-recovery-gate`,
+      sectionId: section.id,
+      title: `${section.title} Recovery`,
+      distance: roundGeometry(section.start + length * distanceRatio),
+      radius: roundGeometry(canonical ? 13 : seededRange(seed, index, 103, 10, 16)),
+      boostAward: Math.round(16 * pressureScale),
+      timeAwardSeconds: roundSeconds(1.6 * pressureScale),
+      color: section.primaryColor,
     }
   })
 }
@@ -592,21 +650,33 @@ function propKindForIndex(
   index: number,
 ): RoadsidePropKind {
   if (canonical) {
-    if (index % 3 === 0) {
+    if (index % 4 === 0) {
       return section.signatureProp
     }
 
-    return index % 3 === 1 ? 'sign' : 'crystal'
+    if (index % 4 === 1) {
+      return 'sign'
+    }
+    return index % 4 === 2 ? 'crystal' : 'palm'
   }
 
   const roll = seededUnit(seed, sectionIndex, index, 61)
-  if (roll < 0.45) {
+  if (roll < 0.34) {
     return section.signatureProp
   }
-  if (roll < 0.72) {
+  if (roll < 0.5) {
     return 'sign'
   }
-  return roll < 0.88 ? 'crystal' : 'palm'
+  if (roll < 0.66) {
+    return 'crystal'
+  }
+  if (roll < 0.78) {
+    return 'palm'
+  }
+  if (roll < 0.86) {
+    return 'chevron'
+  }
+  return roll < 0.93 ? 'holo-billboard' : 'radio-tower'
 }
 
 function themeForIndex(index: number): SectionTheme {

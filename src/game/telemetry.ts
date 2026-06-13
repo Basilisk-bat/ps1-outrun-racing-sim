@@ -299,7 +299,7 @@ function updateDriftZoneScoring(
   const zone = currentDriftZone(level, car.distance)
 
   if (telemetry.activeDriftZoneId && telemetry.activeDriftZoneId !== zone?.id) {
-    finalizeDriftZone(telemetry, car)
+    finalizeDriftZone(telemetry, level, car)
   }
 
   if (!zone) {
@@ -343,10 +343,15 @@ function updateDriftZoneScoring(
   }
 }
 
-function finalizeDriftZone(telemetry: TelemetryState, car: CarState): void {
+function finalizeDriftZone(
+  telemetry: TelemetryState,
+  level: LevelManifest,
+  car: CarState,
+): void {
+  const zone = level.driftZones.find((candidate) => candidate.id === telemetry.activeDriftZoneId)
   const result: DriftZoneResult = {
     zoneId: telemetry.activeDriftZoneId ?? 'unknown-zone',
-    sectionId: telemetry.activeDriftZoneId?.replace('-drift-zone', '') ?? 'unknown',
+    sectionId: zone?.sectionId ?? telemetry.activeDriftZoneId?.replace('-drift-zone', '') ?? 'unknown',
     title: telemetry.activeDriftZoneTitle,
     score: telemetry.activeDriftZoneScore,
     targetScore: telemetry.activeDriftZoneTarget,
@@ -355,7 +360,7 @@ function finalizeDriftZone(telemetry: TelemetryState, car: CarState): void {
   }
 
   if (result.cleared) {
-    result.bonusScore = Math.max(60, Math.round(result.targetScore * 0.55))
+    result.bonusScore = zone?.bonusScore ?? Math.max(60, Math.round(result.targetScore * 0.55))
     applyStyleAward(telemetry, 'zone', result.bonusScore, 1.5)
     telemetry.lastArcadeBanner = `ZONE CLEAR +${result.bonusScore}`
   } else {

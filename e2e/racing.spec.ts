@@ -223,6 +223,14 @@ test('the ridge opens as an endless drift game without a seed parameter', async 
   await expect(page.getByTestId('debug-panel')).not.toContainText('GEN')
 })
 
+test('ships original cover art as a local asset', async ({ page }) => {
+  const response = await page.goto('/cover-art.svg')
+  expect(response?.ok()).toBe(true)
+
+  const text = await page.locator('svg').textContent()
+  expect(text).toContain('Neon Ridge Drift cover art')
+})
+
 test('arcade timer counts down in browser telemetry', async ({ page }) => {
   await page.goto('/')
   await page.waitForFunction(() => window.__RPK_RACING_READY__ === true)

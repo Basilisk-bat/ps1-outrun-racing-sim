@@ -131,6 +131,7 @@ describe('telemetry', () => {
     expect(telemetry.activeDriftZoneId).toBeUndefined()
     expect(telemetry.lastDriftZoneResult?.zoneId).toBe(zone.id)
     expect(telemetry.lastDriftZoneResult?.cleared).toBe(true)
+    expect(telemetry.lastDriftZoneResult?.bonusScore).toBe(zone.bonusScore)
     expect(telemetry.completedDriftZones).toHaveLength(1)
     expect(telemetry.lastArcadeBanner).toContain('ZONE CLEAR')
     expect(telemetry.lastStyleAward?.kind).toBe('zone')

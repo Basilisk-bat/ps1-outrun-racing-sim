@@ -124,6 +124,7 @@ function createRidgeLoop(level: LevelManifest): THREE.Group {
   group.add(createTerrain(level))
   group.add(createRoad(level))
   group.add(createStripes(level))
+  group.add(createRoadSurfaceDetails(level))
   group.add(createDriftZoneMarkers(level))
   group.add(createProps(level))
   return group
@@ -203,6 +204,31 @@ function createStripes(level: LevelManifest): THREE.Group {
       )
       group.add(edge)
     }
+  }
+
+  return group
+}
+
+function createRoadSurfaceDetails(level: LevelManifest): THREE.Group {
+  const group = new THREE.Group()
+  const scuffMaterial = new THREE.MeshBasicMaterial({ color: 0x17172a })
+  const glintMaterial = new THREE.MeshBasicMaterial({ color: 0x4f536e })
+
+  for (let distance = 18; distance < level.totalLength; distance += 34) {
+    const sample = sampleTrack(level, distance)
+    const laneOffset = (((Math.floor(distance / 34) * 7) % 9) - 4) * 0.75
+    const material = Math.floor(distance / 34) % 3 === 0 ? glintMaterial : scuffMaterial
+    const scuff = new THREE.Mesh(
+      new THREE.BoxGeometry(1.8 + ((distance / 34) % 4) * 0.38, 0.055, 6.5),
+      material,
+    )
+    scuff.position.set(
+      sample.centerX + laneOffset,
+      sample.elevation + 0.125,
+      -distance,
+    )
+    scuff.rotation.y = sample.curve * 0.6
+    group.add(scuff)
   }
 
   return group
@@ -512,6 +538,62 @@ function createPropMesh(level: LevelManifest, prop: RoadsideProp): THREE.Object3
     )
     sign.position.y = 5
     group.add(post, sign)
+  } else if (prop.kind === 'holo-billboard') {
+    const postMaterial = new THREE.MeshLambertMaterial({ color: 0x21243f, flatShading: true })
+    const panelMaterial = new THREE.MeshBasicMaterial({ color: prop.color })
+    const glowMaterial = new THREE.MeshBasicMaterial({ color: 0x72f2ff })
+
+    for (const side of [-1, 1] as const) {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.34, 5.6, 0.34), postMaterial)
+      post.position.set(side * 2.4, 2.8, 0)
+      group.add(post)
+    }
+
+    const panel = new THREE.Mesh(new THREE.BoxGeometry(5.8, 2.9, 0.24), panelMaterial)
+    panel.position.y = 5.4
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(4.6, 0.28, 0.3), glowMaterial)
+    stripe.position.y = 5.9
+    group.add(panel, stripe)
+  } else if (prop.kind === 'chevron') {
+    const material = new THREE.MeshBasicMaterial({ color: prop.color })
+    const base = new THREE.Mesh(new THREE.BoxGeometry(0.4, 3.2, 0.4), material)
+    const upper = new THREE.Mesh(new THREE.BoxGeometry(4.4, 0.46, 0.36), material)
+    const lower = new THREE.Mesh(new THREE.BoxGeometry(4.4, 0.46, 0.36), material)
+    base.position.y = 1.6
+    upper.position.set(0, 3.8, 0)
+    lower.position.set(0, 2.75, 0)
+    upper.rotation.z = prop.side * 0.34
+    lower.rotation.z = prop.side * -0.34
+    group.add(base, upper, lower)
+  } else if (prop.kind === 'solar-arch') {
+    const material = new THREE.MeshBasicMaterial({ color: prop.color })
+    const capMaterial = new THREE.MeshBasicMaterial({ color: 0xfff2ad })
+    for (const side of [-1, 1] as const) {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.42, 5.8, 0.42), material)
+      post.position.set(side * 2.4, 2.9, 0)
+      group.add(post)
+    }
+    const cap = new THREE.Mesh(new THREE.BoxGeometry(5.2, 0.5, 0.5), material)
+    cap.position.y = 5.8
+    const sun = new THREE.Mesh(new THREE.CircleGeometry(1.25, 8), capMaterial)
+    sun.position.y = 7.1
+    group.add(cap, sun)
+  } else if (prop.kind === 'radio-tower') {
+    const material = new THREE.MeshLambertMaterial({ color: prop.color, flatShading: true })
+    const mast = new THREE.Mesh(new THREE.ConeGeometry(0.72, 8.4, 4), material)
+    const beacon = new THREE.Mesh(
+      new THREE.SphereGeometry(0.62, 8, 6),
+      new THREE.MeshBasicMaterial({ color: 0xff66b4 }),
+    )
+    const dish = new THREE.Mesh(
+      new THREE.ConeGeometry(1.35, 0.55, 8),
+      new THREE.MeshBasicMaterial({ color: 0x72f2ff }),
+    )
+    mast.position.y = 4.2
+    beacon.position.y = 8.8
+    dish.position.set(prop.side * 1.1, 5.8, 0)
+    dish.rotation.z = prop.side * Math.PI * 0.5
+    group.add(mast, beacon, dish)
   } else {
     const crystal = new THREE.Mesh(
       new THREE.OctahedronGeometry(2.2, 0),
@@ -573,12 +655,41 @@ function updatePlayerBoostFx(car: THREE.Group, boostActive: boolean, boostMeter:
 
 function createHorizon(): THREE.Group {
   const group = new THREE.Group()
+  const skyBands = [
+    { y: 110, height: 46, color: 0x171044 },
+    { y: 74, height: 34, color: 0x27206a },
+    { y: 45, height: 24, color: 0x633169 },
+  ]
+
+  for (const band of skyBands) {
+    const plane = new THREE.Mesh(
+      new THREE.PlaneGeometry(640, band.height),
+      new THREE.MeshBasicMaterial({ color: band.color }),
+    )
+    plane.position.set(0, band.y, -650)
+    group.add(plane)
+  }
+
   const sun = new THREE.Mesh(
     new THREE.CircleGeometry(46, 18),
     new THREE.MeshBasicMaterial({ color: 0xffd36e }),
   )
   sun.position.set(0, 78, -520)
   group.add(sun)
+
+  const scanlineMaterial = new THREE.MeshBasicMaterial({ color: 0x130f2f })
+  for (let index = 0; index < 5; index += 1) {
+    const line = new THREE.Mesh(new THREE.BoxGeometry(92, 2.2, 0.2), scanlineMaterial)
+    line.position.set(0, 52 + index * 8, -519)
+    group.add(line)
+  }
+
+  const starMaterial = new THREE.MeshBasicMaterial({ color: 0xa6f6ff })
+  for (let index = 0; index < 28; index += 1) {
+    const star = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.2, 0.2), starMaterial)
+    star.position.set(-260 + ((index * 47) % 520), 92 + ((index * 29) % 56), -618)
+    group.add(star)
+  }
 
   const mountainsMaterial = new THREE.MeshBasicMaterial({ color: 0x2a2454 })
   for (let index = 0; index < 9; index += 1) {

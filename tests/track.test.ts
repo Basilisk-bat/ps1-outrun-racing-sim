@@ -27,6 +27,17 @@ describe('track manifest', () => {
     expect(level.props.length).toBeGreaterThan(8)
     expect(level.traffic.length).toBeGreaterThan(4)
     expect(level.driftZones).toHaveLength(level.sections.length)
+    expect(new Set(level.props.map((prop) => prop.kind))).toEqual(
+      new Set([
+        'palm',
+        'sign',
+        'crystal',
+        'holo-billboard',
+        'chevron',
+        'solar-arch',
+        'radio-tower',
+      ]),
+    )
   })
 
   it('preserves the canonical ridge identities while generating from section themes', () => {
